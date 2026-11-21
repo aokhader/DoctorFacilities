@@ -1,0 +1,34 @@
+# Decisions
+
+Rule: add a line for every decision. Don't rewrite old lines. If a decision changes, add a new line that says which one it replaces.
+
+| Date | # | Decision | Why | Who |
+|---|---|---|---|---|
+| 2026-11-21 | D1 | Build inside Google Sheets (menu + sidebar, Apps Script). Google Sheets is the master copy; Excel gets imported | The list moves between Excel and Sheets. Sheets needs no install and has a built-in address lookup | Owner (Q&A) |
+| 2026-11-21 | D2 | Users are office staff only | Internal tool | Owner (Q&A) |
+| 2026-11-21 | D3 | The sheet has full street addresses | Accurate distances | Owner (Q&A) |
+| 2026-11-21 | D4 | One row per doctor + surgery center, with an office address column on each row | How the sheet is laid out today | Owner (Q&A) |
+| 2026-11-21 | D5 | Rank by the farther of nearest office and nearest surgery center | The patient needs both the office and the center to be close | Owner (Q&A) |
+| 2026-11-21 | D6 | Straight-line miles, plus a Google Maps link for real directions | Instant and free | Owner (Q&A) |
+| 2026-11-21 | D7 | Filters: profession (required), max miles, insurance, language | These columns already exist | Owner (Q&A) |
+| 2026-11-21 | D8 | Duplicates (name + profession + facility) are reported, never deleted or skipped | The owner wants to review them first | Owner |
+| 2026-11-21 | D9 | Results go to a Results tab, not the sidebar | The sidebar is too narrow; a tab can be sorted, copied and printed | Claude, approved with spec |
+| 2026-11-21 | D10 | Use the built-in `Maps.newGeocoder()`, no API key | No billing or key setup for staff | Claude, approved with spec |
+| 2026-11-21 | D11 | Cache every address lookup in a Locations tab | Each address is looked up once ever, so searches stay under the daily limit | Claude, approved with spec |
+| 2026-11-21 | D12 | The patient's address is never stored, and map links are destination only | Privacy | Claude, approved with spec |
+| 2026-11-21 | D13 | No libraries, no build step, no clasp. Install is copy and paste | Nothing for staff to install or learn | Claude, approved with spec |
+| 2026-11-21 | D14 | Google-free logic lives in `Logic.js` and is tested with `node --test` | It's the only part that can be tested outside Google | Claude, approved with spec |
+
+## Needs sign-off (PROPOSED)
+The build can start with these as written. Each one is a single line to change later.
+- [ ] **P1** Tab names: `Doctors`, `Locations`, `Results`.
+- [ ] **P2** Column headers: `Doctor Name, Profession, Office Address, Facility Name, Facility Address, Insurance, Languages`. **Owner: please send your real header row.**
+- [ ] **P3** Default max distance of 25 mi. With no limit, show the top 20.
+- [ ] **P4** The Results tab shows the search criteria but not the patient's address.
+- [ ] **P5** Duplicates match on exact text after trimming and ignoring case, so "Dr. Jane Doe" and "Jane Doe" are **not** flagged.
+- [ ] **P6** A doctor is identified by name + profession. Two different doctors with the same name and profession would be merged.
+- [ ] **P7** Rows with a blank `Doctor Name` are left out of searches and listed in the warnings. (They stay in the sheet.)
+
+## Open questions for the owner
+- Personal Gmail account or Google Workspace? That decides the daily lookup limit: about 1,000 vs 10,000.
+- Roughly how many rows and distinct addresses? That decides how long the first "Look up all addresses" takes.
