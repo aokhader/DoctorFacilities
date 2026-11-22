@@ -23,6 +23,8 @@ Rule: add a line for every decision. Don't rewrite old lines. If a decision chan
 | 2026-11-21 | D17 | Rows with a blank `Profession` are left out of searches and listed in the warnings, the same as blank names (P7). They stay in the sheet | A doctor with no profession can never match a search, so leaving it out silently would hide it | Claude, phase 1 plan approved by owner |
 | 2026-11-21 | D18 | If a doctor's office or center is in the sheet but Google couldn't find it, the Results cell says "Office address not found" / "Surgery center address not found", not "No office listed" | Staff shouldn't be told an address is missing when it's there and just needs fixing | Claude, phase 1 plan approved by owner |
 | 2026-11-21 | D19 | The test command is `node --test` (no folder name) | Node 22 reads `node --test tests/` as a file pattern and finds nothing. Plain `node --test` finds `*.test.js` files on Node 18 through 22 | Claude, step 1 |
+| 2026-11-21 | D20 | If Google can only place an address at state or country level, it counts as NOT FOUND. This applies to doctor addresses and the patient's. A ZIP or a city still counts | A mistyped address pinned to the middle of California would give wrong miles with no warning | Owner (steps 3–6 plan) |
+| 2026-11-21 | D21 | If Google answers `INVALID_REQUEST` for an address, it's saved as NOT FOUND, the same as `ZERO_RESULTS`. Only temporary problems (`UNKNOWN_ERROR`, limits) stop the run without saving | An error that isn't saved would be retried first on every run, so one odd address could block all later lookups | Claude, step 4 |
 
 ## Needs sign-off (PROPOSED)
 The build can start with these as written. Each one is a single line to change later.

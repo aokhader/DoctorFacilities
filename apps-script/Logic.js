@@ -21,6 +21,9 @@ const RESULT_HEADERS = [
   'Nearest surgery center', 'Center (mi)', 'Other centers within limit', 'Insurance', 'Languages',
 ];
 
+const LOCATION_HEADERS = ['Address', 'Latitude', 'Longitude', 'Google matched as', 'Looked up on'];
+const NOT_FOUND = 'NOT FOUND';
+
 // ---------- Text ----------
 
 function normalizeText(text) {
@@ -165,6 +168,65 @@ function listChoices(rows) {
   };
 }
 
+// ---------- The Locations tab (saved address lookups) ----------
+
+const DAILY_LIMIT_MESSAGE = "Google's daily address lookup limit was reached. Try again tomorrow — " +
+  'addresses already looked up still work.';
+const LOOKUP_PROBLEM_MESSAGE = "Google's address lookup had a problem. Try again in a few minutes.";
+// Google's place types for a match that is only a whole state or country: too vague to measure miles from (D20).
+const TOO_VAGUE_TYPES = ['administrative_area_level_1', 'country'];
+
+// Sorts the doctors' addresses into saved points, ones Google couldn't find, and ones still to look up.
+// If an address is on the Locations tab twice, the later row wins.
+function planLookups(addresses, locationValues) {
+  const points = {};
+  const notFound = new Set();
+  locationValues.slice(1).forEach(cells => {
+    const key = normalizeText(cells[0]);
+    if (key === '') return;
+    if (cleanText(cells[3]) === NOT_FOUND) {
+      notFound.add(key);
+      delete points[key];
+    } else if (typeof cells[1] === 'number' && typeof cells[2] === 'number') {
+      points[key] = { lat: cells[1], lng: cells[2] };
+      notFound.delete(key);
+    }
+  });
+  const isSaved = address => Boolean(points[normalizeText(address)]) || notFound.has(normalizeText(address));
+  return {
+    points: points,
+    notFound: addresses.filter(address => notFound.has(normalizeText(address))),
+    toLookUp: addresses.filter(address => !isSaved(address)),
+  };
+}
+
+// One row for the Locations tab. match is null when Google couldn't find the address.
+function locationRow(address, match, todayText) {
+  return match
+    ? [address, match.lat, match.lng, match.matchedAs, todayText]
+    : [address, '', '', NOT_FOUND, todayText];
+}
+
+// Reads the answer from Google's geocoder: { lat, lng, matchedAs }, or null if it couldn't place the address.
+function readGeocoderAnswer(response) {
+  // INVALID_REQUEST is saved as not found too, so one odd address can't block every later lookup.
+  if (response.status === 'ZERO_RESULTS' || response.status === 'INVALID_REQUEST') return null;
+  if (response.status === 'OVER_QUERY_LIMIT' || response.status === 'OVER_DAILY_LIMIT') {
+    throw new Error(DAILY_LIMIT_MESSAGE);
+  }
+  if (response.status !== 'OK') throw new Error(LOOKUP_PROBLEM_MESSAGE);
+  const best = response.results[0];
+  if ((best.types || []).some(type => TOO_VAGUE_TYPES.includes(type))) return null;
+  return { lat: best.geometry.location.lat, lng: best.geometry.location.lng, matchedAs: best.formatted_address };
+}
+
+// A warning that lists the addresses Google couldn't find, or '' if there are none.
+function describeNotFound(addresses) {
+  if (addresses.length === 0) return '';
+  return "Google couldn't find these addresses, so they're left out of the distances: " + addresses.join('; ') +
+    '. Fix the spelling on the Doctors tab and they will be looked up again.';
+}
+
 // ---------- Distance and ranking ----------
 
 // Straight-line ("as the crow flies") miles between two { lat, lng } points.
@@ -302,8 +364,10 @@ function buildResultsTable(results, filters, searchedAtText) {
 // Lets Node load this file for tests. Apps Script ignores it.
 if (typeof module !== 'undefined') {
   module.exports = {
-    COLUMN_NAMES, DEFAULT_MAX_MILES, TOP_N_WHEN_NO_LIMIT, RESULT_HEADERS,
+    COLUMN_NAMES, DEFAULT_MAX_MILES, TOP_N_WHEN_NO_LIMIT, RESULT_HEADERS, LOCATION_HEADERS, NOT_FOUND,
+    DAILY_LIMIT_MESSAGE, LOOKUP_PROBLEM_MESSAGE,
     normalizeText, splitList, readDoctorRows, findDuplicates, describeDuplicates, groupDoctors,
-    listAddresses, listChoices, milesBetween, rankDoctors, buildResultsTable,
+    listAddresses, listChoices, planLookups, locationRow, readGeocoderAnswer, describeNotFound,
+    milesBetween, rankDoctors, buildResultsTable,
   };
 }

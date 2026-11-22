@@ -135,6 +135,59 @@ test('listAddresses and listChoices give each value once', () => {
   });
 });
 
+// ---------- The Locations tab ----------
+
+test('planLookups: saved points, not-found addresses, and what is still to look up', () => {
+  const locationValues = [
+    logic.LOCATION_HEADERS,
+    ['1 Main St', 32.7, -117.1, '1 Main St, Town, CA, USA', '2026-11-20'],
+    ['9 Bad Rd', '', '', 'NOT FOUND', '2026-11-20'],
+    ['5 Oak Ave', '', '', 'someone cleared the numbers', '2026-11-20'],
+    ['7 Elm St', '', '', 'NOT FOUND', '2026-11-20'],
+    ['  7 elm  st ', 32.9, -117.3, '7 Elm St, Town, CA, USA', '2026-11-21'], // later row wins
+  ];
+  const addresses = ['1 MAIN ST', '9 Bad Rd', '5 Oak Ave', '7 Elm St', '2 New St'];
+  assert.deepEqual(logic.planLookups(addresses, locationValues), {
+    points: { '1 main st': { lat: 32.7, lng: -117.1 }, '7 elm st': { lat: 32.9, lng: -117.3 } },
+    notFound: ['9 Bad Rd'],
+    toLookUp: ['5 Oak Ave', '2 New St'],
+  });
+  assert.deepEqual(logic.planLookups(['1 Main St'], []).toLookUp, ['1 Main St'], 'no Locations tab yet');
+  assert.deepEqual(logic.planLookups(['1 Main St'], [['']]).toLookUp, ['1 Main St'], 'an empty tab');
+});
+
+test('locationRow writes a found or NOT FOUND row', () => {
+  assert.deepEqual(logic.locationRow('1 Main St', { lat: 1, lng: 2, matchedAs: '1 Main St, USA' }, '2026-11-21'),
+    ['1 Main St', 1, 2, '1 Main St, USA', '2026-11-21']);
+  assert.deepEqual(logic.locationRow('9 Bad Rd', null, '2026-11-21'), ['9 Bad Rd', '', '', 'NOT FOUND', '2026-11-21']);
+});
+
+test('readGeocoderAnswer: a street, ZIP or city counts; a whole state or country does not (D20)', () => {
+  const answer = (types, status) => ({
+    status: status || 'OK',
+    results: [{ formatted_address: 'Somewhere, USA', geometry: { location: { lat: 1, lng: 2 } }, types: types }],
+  });
+  const found = { lat: 1, lng: 2, matchedAs: 'Somewhere, USA' };
+  assert.deepEqual(logic.readGeocoderAnswer(answer(['street_address'])), found);
+  assert.deepEqual(logic.readGeocoderAnswer(answer(['postal_code'])), found);
+  assert.deepEqual(logic.readGeocoderAnswer(answer(['locality', 'political'])), found);
+  assert.equal(logic.readGeocoderAnswer(answer(['administrative_area_level_1', 'political'])), null);
+  assert.equal(logic.readGeocoderAnswer(answer(['country', 'political'])), null);
+  assert.equal(logic.readGeocoderAnswer({ status: 'ZERO_RESULTS', results: [] }), null);
+  assert.equal(logic.readGeocoderAnswer({ status: 'INVALID_REQUEST', results: [] }), null);
+  assert.throws(() => logic.readGeocoderAnswer({ status: 'OVER_QUERY_LIMIT', results: [] }),
+    { message: logic.DAILY_LIMIT_MESSAGE });
+  assert.throws(() => logic.readGeocoderAnswer({ status: 'UNKNOWN_ERROR', results: [] }),
+    { message: logic.LOOKUP_PROBLEM_MESSAGE });
+});
+
+test('describeNotFound lists the addresses and says how to fix them', () => {
+  assert.equal(logic.describeNotFound([]), '');
+  assert.equal(logic.describeNotFound(['9 Bad Rd', '8 Odd Ln']),
+    "Google couldn't find these addresses, so they're left out of the distances: 9 Bad Rd; 8 Odd Ln. " +
+    'Fix the spelling on the Doctors tab and they will be looked up again.');
+});
+
 // ---------- Distance and ranking ----------
 
 test('milesBetween: same point is 0, one degree of latitude is about 69.1 miles', () => {
