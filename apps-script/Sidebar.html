@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 16px; color: #202124; margin: 12px; }
+    label { display: block; font-weight: bold; margin-top: 16px; }
+    input, select, button { box-sizing: border-box; width: 100%; font-size: 16px; padding: 8px; margin-top: 4px; }
+    input, select { border: 1px solid #80868b; border-radius: 4px; background: #fff; color: #202124; }
+    .hint { margin: 4px 0 0; font-size: 14px; color: #5f6368; }
+    button { margin-top: 24px; border: 0; border-radius: 4px; background: #1a73e8; color: #fff; font-weight: bold; cursor: pointer; }
+    button:disabled { background: #9aa0a6; cursor: default; }
+    #status { margin: 16px 0 0; font-weight: bold; }
+    #error { margin-top: 16px; padding: 10px; border: 2px solid #c5221f; border-radius: 4px; background: #fce8e6; color: #a50e0e; }
+    #warnings { margin: 8px 0 0; padding-left: 20px; font-size: 14px; }
+    #warnings li { margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <!-- novalidate: Doctor Finder checks the form itself, so every problem gets the same plain message. -->
+  <form id="search" novalidate>
+    <label for="location">Patient's ZIP code or address</label>
+    <input id="location" name="location" required autocomplete="off">
+    <p class="hint">A ZIP code is enough. Don't type the patient's name.</p>
+
+    <label for="profession">Profession</label>
+    <select id="profession" name="profession" required></select>
+
+    <label for="maxMiles">Max miles</label>
+    <input id="maxMiles" name="maxMiles" inputmode="decimal" autocomplete="off">
+    <p class="hint">Leave blank for any distance.</p>
+
+    <label for="insurance">Insurance</label>
+    <select id="insurance" name="insurance"></select>
+
+    <label for="language">Language</label>
+    <select id="language" name="language"></select>
+
+    <button id="find" type="submit" disabled>Find doctors</button>
+  </form>
+
+  <p id="status" role="status">Loading the doctor list…</p>
+  <div id="error" role="alert" hidden></div>
+  <ul id="warnings"></ul>
+
+  <script>
+    const form = document.getElementById('search');
+    const findButton = document.getElementById('find');
+
+    function fillDropdown(id, values, firstChoice) {
+      const select = document.getElementById(id);
+      select.replaceChildren(new Option(firstChoice, ''));
+      values.forEach(value => select.add(new Option(value, value)));
+    }
+
+    // Shows { message, warnings } or { error } under the form.
+    function showAnswer(answer) {
+      document.getElementById('status').textContent = answer.message || '';
+      const errorBox = document.getElementById('error');
+      errorBox.textContent = answer.error || '';
+      errorBox.hidden = !answer.error;
+      document.getElementById('warnings').replaceChildren(...(answer.warnings || []).map(text => {
+        const item = document.createElement('li');
+        item.textContent = text;
+        return item;
+      }));
+    }
+
+    function showChoices(choices) {
+      if (choices.error) {
+        showAnswer({ error: choices.error + ' Then close this panel and open Doctor Finder → Find doctors… again.' });
+        return;
+      }
+      fillDropdown('profession', choices.professions, 'Pick a profession');
+      fillDropdown('insurance', choices.insurances, 'Any');
+      fillDropdown('language', choices.languages, 'Any');
+      document.getElementById('maxMiles').value = choices.defaultMaxMiles;
+      showAnswer({});
+      findButton.disabled = false;
+      document.getElementById('location').focus();
+    }
+
+    // Only for problems Doctor Finder couldn't catch itself, like a lost internet connection.
+    function showProblem(error) {
+      showAnswer({ error: 'Something went wrong (' + (error && error.message ? error.message : error) + '). ' +
+        'Reload the sheet and try again. If it keeps happening, send a screenshot of this to whoever set up Doctor Finder.' });
+    }
+
+    function searchDone(answer) {
+      showAnswer(answer);
+      findButton.disabled = false;
+    }
+
+    function searchFailed(error) {
+      showProblem(error);
+      findButton.disabled = false;
+    }
+
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      findButton.disabled = true;
+      showAnswer({ message: 'Searching… The first search after the doctor list changes can take a minute.' });
+      runSearch(Object.fromEntries(new FormData(form)));
+    });
+
+    // ---------- Calls to Google: the only lines to change for another spreadsheet program ----------
+    function loadChoices() {
+      google.script.run.withSuccessHandler(showChoices).withFailureHandler(showProblem).getSearchChoices();
+    }
+
+    function runSearch(formValues) {
+      google.script.run.withSuccessHandler(searchDone).withFailureHandler(searchFailed).searchDoctors(formValues);
+    }
+
+    loadChoices();
+  </script>
+</body>
+</html>

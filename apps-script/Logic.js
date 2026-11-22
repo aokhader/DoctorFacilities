@@ -227,6 +227,56 @@ function describeNotFound(addresses) {
     '. Fix the spelling on the Doctors tab and they will be looked up again.';
 }
 
+// ---------- The search form ----------
+
+const NO_MATCHES_MESSAGE = 'No doctors matched. Try a larger distance or Any insurance.';
+
+// Checks what staff typed in the sidebar and turns it into { location, filters }.
+function readSearchForm(form) {
+  const location = cleanText(form.location);
+  if (location === '') throw new Error("Type the patient's ZIP code or address.");
+  const profession = cleanText(form.profession);
+  if (profession === '') throw new Error('Pick a profession.');
+  const milesText = cleanText(form.maxMiles);
+  const maxMiles = milesText === '' ? null : Number(milesText);
+  if (maxMiles !== null && !(Number.isFinite(maxMiles) && maxMiles > 0)) {
+    throw new Error('Max miles must be a number above 0, like 25. Leave it blank for any distance.');
+  }
+  return {
+    location: location,
+    filters: {
+      profession: profession,
+      maxMiles: maxMiles,
+      insurance: cleanText(form.insurance) || null,
+      language: cleanText(form.language) || null,
+    },
+  };
+}
+
+function countOf(count, word) {
+  return count + ' ' + word + (count === 1 ? '' : 's');
+}
+
+// What the sidebar shows after a search: one message, plus warnings that didn't stop the search.
+function summarizeSearch(outcome) {
+  const left = outcome.notLookedUpCount;
+  return {
+    message: outcome.foundCount === 0
+      ? NO_MATCHES_MESSAGE
+      : 'Found ' + countOf(outcome.foundCount, 'doctor') + ' — see the Results tab.',
+    warnings: outcome.rowWarnings.concat(
+      outcome.duplicateCount > 0
+        ? countOf(outcome.duplicateCount, 'possible duplicate') + ' — use Check for duplicates.'
+        : '',
+      describeNotFound(outcome.notFound),
+      left > 0
+        ? (left === 1 ? "1 address isn't" : left + " addresses aren't") + ' looked up yet, so some doctors may be ' +
+          'missing. Run Doctor Finder → Look up all addresses, then search again.'
+        : '',
+    ).filter(text => text !== ''),
+  };
+}
+
 // ---------- Distance and ranking ----------
 
 // Straight-line ("as the crow flies") miles between two { lat, lng } points.
@@ -365,9 +415,9 @@ function buildResultsTable(results, filters, searchedAtText) {
 if (typeof module !== 'undefined') {
   module.exports = {
     COLUMN_NAMES, DEFAULT_MAX_MILES, TOP_N_WHEN_NO_LIMIT, RESULT_HEADERS, LOCATION_HEADERS, NOT_FOUND,
-    DAILY_LIMIT_MESSAGE, LOOKUP_PROBLEM_MESSAGE,
+    DAILY_LIMIT_MESSAGE, LOOKUP_PROBLEM_MESSAGE, NO_MATCHES_MESSAGE,
     normalizeText, splitList, readDoctorRows, findDuplicates, describeDuplicates, groupDoctors,
     listAddresses, listChoices, planLookups, locationRow, readGeocoderAnswer, describeNotFound,
-    milesBetween, rankDoctors, buildResultsTable,
+    readSearchForm, summarizeSearch, milesBetween, rankDoctors, buildResultsTable,
   };
 }

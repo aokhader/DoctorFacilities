@@ -1,20 +1,23 @@
 /**
  * @OnlyCurrentDoc
  */
-// Doctor Finder: the Google parts (menu, popups, tabs, address lookup).
+// Doctor Finder: the Google parts (menu, search panel, popups, tabs, address lookup).
 // The rules (columns, duplicates, miles, ranking) live in Logic.gs.
 // The line above limits Google's permission screen to this one spreadsheet.
 
 const DOCTORS_TAB = 'Doctors';
 const LOCATIONS_TAB = 'Locations';
+const RESULTS_TAB = 'Results';
 // Google stops every run at 6 minutes, so lookups stop at 5 and ask to be run again.
 const STOP_LOOKUPS_AFTER_MS = 5 * 60 * 1000;
 const SLOW_DOWN_MESSAGE = 'Google asked Doctor Finder to slow down. Wait a minute and try again.';
+const PATIENT_NOT_FOUND_MESSAGE = "Couldn't find that location. Try just the ZIP code.";
 
 // ---------- Menu ----------
 
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Doctor Finder')
+    .addItem('Find doctors…', 'showSearchPanel')
     .addItem('Check for duplicates', 'showDuplicates')
     .addItem('Look up all addresses', 'lookUpAllAddresses')
     .addToUi();
@@ -35,6 +38,39 @@ function lookUpAllAddresses() {
     }
     return ['All ' + addresses.length + ' addresses are looked up (' + newCount + ' new this time).',
       describeNotFound(plan.notFound)].filter(text => text !== '').join('\n\n');
+  });
+}
+
+// ---------- Search panel ----------
+
+function showSearchPanel() {
+  SpreadsheetApp.getUi().showSidebar(HtmlService.createHtmlOutputFromFile('Sidebar').setTitle('Doctor Finder'));
+}
+
+// The sidebar calls this when it opens, to fill its dropdowns.
+function getSearchChoices() {
+  return answerSidebar(() => Object.assign(listChoices(readDoctors().rows), { defaultMaxMiles: DEFAULT_MAX_MILES }));
+}
+
+// The sidebar's Find doctors button calls this. The patient's location is used here and never saved (R7).
+function searchDoctors(form) {
+  return answerSidebar(() => {
+    const search = readSearchForm(form);
+    const doctors = readDoctors();
+    const patientPoint = findPlace(search.location);
+    if (!patientPoint) throw new Error(PATIENT_NOT_FOUND_MESSAGE);
+    const addresses = listAddresses(doctors.rows);
+    lookUpNewAddresses(addresses, Date.now() + STOP_LOOKUPS_AFTER_MS);
+    const plan = planLookups(addresses, readTab(LOCATIONS_TAB));
+    const results = rankDoctors(groupDoctors(doctors.rows), patientPoint, plan.points, search.filters);
+    writeResults(buildResultsTable(results, search.filters, formatNow('yyyy-MM-dd h:mm a')));
+    return summarizeSearch({
+      foundCount: results.length,
+      rowWarnings: doctors.warnings,
+      duplicateCount: findDuplicates(doctors.rows).length,
+      notFound: plan.notFound,
+      notLookedUpCount: plan.toLookUp.length,
+    });
   });
 }
 
@@ -101,6 +137,18 @@ function openLocationsTab() {
   return tab;
 }
 
+// Replaces the Results tab with the new table and switches to it.
+function writeResults(table) {
+  const tab = getOrCreateTab(RESULTS_TAB);
+  const width = table[0].length;
+  tab.clear();
+  tab.getRange(1, 1, table.length, width).setValues(table);
+  tab.getRange(2, 1, 1, width).setFontWeight('bold');
+  tab.setFrozenRows(2);
+  tab.autoResizeColumns(2, width - 1); // not column A: its row 1 holds the long search line
+  tab.activate();
+}
+
 // Today's date or time as text, in the spreadsheet's own time zone.
 // Some spreadsheets have no time zone set, so the script's time zone is the backup.
 function formatNow(pattern) {
@@ -119,6 +167,15 @@ function showPopup(work) {
   }
   const ui = SpreadsheetApp.getUi();
   ui.alert('Doctor Finder', text, ui.ButtonSet.OK);
+}
+
+// Sidebar calls return { error } instead of throwing, so the sidebar can show our message as written.
+function answerSidebar(work) {
+  try {
+    return work();
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
 }
 
 // Messages we wrote already say what to do next. Anything else (a bug, a Google outage) gets a next step added.

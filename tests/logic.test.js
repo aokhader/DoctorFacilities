@@ -188,6 +188,46 @@ test('describeNotFound lists the addresses and says how to fix them', () => {
     'Fix the spelling on the Doctors tab and they will be looked up again.');
 });
 
+// ---------- The search form ----------
+
+test('readSearchForm trims the form and turns blanks into Any', () => {
+  assert.deepEqual(
+    logic.readSearchForm({ location: ' 92101 ', profession: 'Cardiology', maxMiles: ' 2.5 ', insurance: '', language: 'Spanish' }),
+    { location: '92101', filters: { profession: 'Cardiology', maxMiles: 2.5, insurance: null, language: 'Spanish' } });
+  assert.equal(logic.readSearchForm({ location: '92101', profession: 'Cardiology', maxMiles: '' }).filters.maxMiles, null,
+    'blank max miles = any distance');
+});
+
+test('readSearchForm: each missing or bad field gives its plain-English message', () => {
+  const form = extra => Object.assign({ location: '92101', profession: 'Cardiology', maxMiles: '25' }, extra);
+  assert.throws(() => logic.readSearchForm(form({ location: '  ' })), { message: "Type the patient's ZIP code or address." });
+  assert.throws(() => logic.readSearchForm(form({ profession: '' })), { message: 'Pick a profession.' });
+  for (const maxMiles of ['0', '-5', 'abc', '25 miles', 'Infinity']) {
+    assert.throws(() => logic.readSearchForm(form({ maxMiles })),
+      { message: 'Max miles must be a number above 0, like 25. Leave it blank for any distance.' }, maxMiles);
+  }
+});
+
+test('summarizeSearch: the found message plus each kind of warning', () => {
+  const outcome = extra => Object.assign(
+    { foundCount: 7, rowWarnings: [], duplicateCount: 0, notFound: [], notLookedUpCount: 0 }, extra);
+  assert.deepEqual(logic.summarizeSearch(outcome()), { message: 'Found 7 doctors — see the Results tab.', warnings: [] });
+  assert.equal(logic.summarizeSearch(outcome({ foundCount: 1 })).message, 'Found 1 doctor — see the Results tab.');
+  assert.equal(logic.summarizeSearch(outcome({ foundCount: 0 })).message, logic.NO_MATCHES_MESSAGE);
+  assert.deepEqual(logic.summarizeSearch(outcome({
+    rowWarnings: ["Row 9 has no Doctor Name, so it's left out of searches."],
+    duplicateCount: 3, notFound: ['9 Bad Rd'], notLookedUpCount: 1,
+  })).warnings, [
+    "Row 9 has no Doctor Name, so it's left out of searches.",
+    '3 possible duplicates — use Check for duplicates.',
+    logic.describeNotFound(['9 Bad Rd']),
+    "1 address isn't looked up yet, so some doctors may be missing. " +
+      'Run Doctor Finder → Look up all addresses, then search again.',
+  ]);
+  assert.match(logic.summarizeSearch(outcome({ duplicateCount: 1, notLookedUpCount: 40 })).warnings.join('\n'),
+    /^1 possible duplicate — .*\n40 addresses aren't looked up yet/);
+});
+
 // ---------- Distance and ranking ----------
 
 test('milesBetween: same point is 0, one degree of latitude is about 69.1 miles', () => {
