@@ -23,6 +23,7 @@ Status: spec approved, code not started. See `context/progress.md`.
 |---|---|
 | `context/progress.md` | **Every session start.** What's done, what's next |
 | `context/spec.md` | Before building any step: requirements R1–R9, flows, logic, files, failure messages |
+| `context/architecture.md` | Before writing code: layers, what goes in Code.js vs Logic.js, function list, data shapes. Also the plan for Excel support |
 | `context/data.md` | When touching columns, tabs, matching rules, or the sample CSV |
 | `context/setup.md` | When changing anything staff see (menus, sidebar, messages) or how it's installed |
 | `context/decisions.md` | Before changing behavior. Log any new decision here |
@@ -37,7 +38,7 @@ Code (once built): `apps-script/Code.js`, `apps-script/Logic.js`, `apps-script/S
 
 **Work**
 - Build the smallest version that meets the step's "Done when."
-- Run `node --test tests/` and show the output.
+- Run `node --test` and show the output.
 - Steps 3–7 touch Google and can't run here. Say exactly what the owner should click to check them.
 
 **End**
@@ -47,5 +48,5 @@ Code (once built): `apps-script/Code.js`, `apps-script/Logic.js`, `apps-script/S
 
 ## Commands
 ```bash
-node --test tests/
+node --test
 ```

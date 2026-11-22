@@ -1,0 +1,195 @@
+# Architecture
+
+Status 2026-11-21: **Logic layer built and tested (steps 1–2). Code.js and Sidebar.html not built yet.** This is the target that build steps 1–6 implement. If the code drifts from it, update this file in the same session.
+
+Purpose: show how the pieces fit, and keep the Google-only code small, so **Excel support (§8) only has to replace one layer.**
+
+## 1. The big picture
+There are three layers. Only the middle one knows about Google.
+
+```
+ Staff
+   │  types location, picks profession, clicks
+   ▼
+ ┌────────────────────────────────────────────┐
+ │ 1. SCREEN        Sidebar.html              │  form + messages. No logic
+ └────────────────────────────────────────────┘
+   │  google.script.run  (the only link to layer 2)
+   ▼
+ ┌────────────────────────────────────────────┐
+ │ 2. PLATFORM      Code.js   (Google only)   │  menu, read/write tabs,
+ │                                            │  address lookup, popups
+ └────────────────────────────────────────────┘
+   │  plain function calls with plain data (§4)
+   ▼
+ ┌────────────────────────────────────────────┐
+ │ 3. LOGIC         Logic.js  (no Google)     │  columns, duplicates,
+ │                                            │  grouping, miles, ranking
+ └────────────────────────────────────────────┘
+
+ Stored in the spreadsheet:   Doctors (read only) · Locations (cache) · Results (output)
+ Outside service:             Google's geocoder (Maps.newGeocoder, no key)
+```
+
+| Layer | File | Knows about Google? | Tested by |
+|---|---|---|---|
+| Screen | `apps-script/Sidebar.html` | Only through `google.script.run` calls | Hand (setup.md) |
+| Platform | `apps-script/Code.js` | Yes, all of it | Hand (setup.md) |
+| Logic | `apps-script/Logic.js` | **Never** (CLAUDE.md rule 5) | `node --test` |
+
+**Why it's split this way:** Logic.js is most of the thinking and is the same on any spreadsheet program. Keeping it free of Google calls means it can be tested on a laptop and reused for Excel without changes.
+
+## 2. Path of one search (flow 1)
+The patient's location lives **in memory only** (R7). ⚠ marks each place it passes through.
+
+1. Staff click **Doctor Finder → Find doctors…** → `showSearchPanel()` opens `Sidebar.html`.
+2. The sidebar calls `getSearchChoices()`. Code.js reads Doctors, `Logic.readDoctorRows()` → `Logic.listChoices(rows)` + `Logic.findDuplicates(rows).length` → dropdowns filled.
+3. Staff fill the form and click **Find doctors**. ⚠ The sidebar sends `{location, profession, maxMiles, insurance, language}` to `searchDoctors(form)`.
+4. Code.js reads Doctors → `Logic.readDoctorRows(values)` → rows, or a missing-header message (spec §7).
+5. `Logic.listAddresses(rows)` → Code.js looks up any address not yet in Locations, saves the result, and builds `points`.
+6. ⚠ Code.js geocodes `form.location` → `patientPoint` (not saved anywhere).
+7. `Logic.groupDoctors(rows)` → doctors. `Logic.rankDoctors(doctors, patientPoint, points, filters)` → results.
+8. `Logic.buildResultsTable(results, filters, searchedAtText)` → a 2D array (no patient address). Code.js clears Results and writes it.
+9. Code.js returns `{foundCount, warnings}` → the sidebar shows "Found 7 doctors — see the Results tab" + warnings. ⚠ The location is discarded here.
+
+**Other menu items:**
+- **Check for duplicates:** read Doctors → `readDoctorRows` → `findDuplicates` → popup.
+- **Look up all addresses:** read Doctors → `listAddresses` → look up the missing ones until about 5 min → "Looked up X of Y" popup.
+
+## 3. Platform layer (`Code.js`): everything a platform must provide
+**This table is the checklist for Excel (§8).**
+
+| # | Job | Google Sheets way (check the docs when building) |
+|---|---|---|
+| P-1 | Add the menu | `onOpen()` + `SpreadsheetApp.getUi().createMenu()` |
+| P-2 | Show the search panel | `HtmlService.createHtmlOutputFromFile('Sidebar')` → `showSidebar()` |
+| P-3 | Read a tab as a 2D array | `sheet.getDataRange().getValues()` |
+| P-4 | Write a 2D array to a tab (+ bold, freeze row 2) | `range.setValues()` / `setFormulas()` |
+| P-5 | Create Locations/Results if missing | `insertSheet()` |
+| P-6 | Look up one address → point, or null | `Maps.newGeocoder().setRegion('us').geocode()` |
+| P-7 | Show a popup message | `SpreadsheetApp.getUi().alert()` |
+| P-8 | Stop long work before the time limit | Check the elapsed time; stop at about 5 min (the limit is about 6) |
+| P-9 | Know "today" for `Looked up on`, and the search time for the Results tab | `new Date()`, formatted in the sheet's time zone (`yyyy-mm-dd`; `yyyy-mm-dd h:mm a`). Logic.js gets ready-made text, so it has no time zones |
+
+**Entry points (the names the menu and sidebar call):**
+- `onOpen()`
+- `showSearchPanel()`
+- `showDuplicates()`
+- `lookUpAllAddresses()`
+- `getSearchChoices()` → `{professions, insurances, languages, duplicateCount}`
+- `searchDoctors(form)` → `{foundCount, warnings}`
+
+Code.js holds **no** matching, distance or ranking rules. If you're about to write an `if` about doctors in Code.js, it belongs in Logic.js.
+
+## 4. Logic layer (`Logic.js`): functions and data shapes
+Plain JavaScript. No Google or Excel calls, no libraries. It ends with `if (typeof module !== 'undefined') module.exports = {...}` so Node can test it, and Apps Script and browsers ignore that line.
+
+In Apps Script every file shares one scope, so Code.js calls these by plain name (`readDoctorRows(...)`). The `Logic.` prefix in this doc is only a label. Logic.js also has small helpers (`groupBy`, `uniqueBy`, `uniqueText`, `isAny`, `mapLink`, …), so **Code.js must not define functions with those names.**
+
+**Settings at the top:**
+- `COLUMN_NAMES`: the header text for each field. It lives here, not in Code.js, so every platform uses the same names (D15).
+- `DEFAULT_MAX_MILES = 25`
+- `TOP_N_WHEN_NO_LIMIT = 20` (P3)
+
+| Function | In | Out |
+|---|---|---|
+| `normalizeText(text)` | any cell | trimmed, single-spaced, lowercase string |
+| `splitList(cell)` | `"Aetna; Cigna"` | `["Aetna", "Cigna"]` |
+| `readDoctorRows(values)` | 2D array, header row first | `{rows: Row[], warnings: string[]}`. **Throws** a plain-English Error if any of the 7 headers is missing. Rows with a blank name or profession are left out, with a warning (P7, D17) |
+| `findDuplicates(rows)` | `Row[]` | `[{rowNumbers: [2, 5], doctorName, profession, facilityName}]` |
+| `groupDoctors(rows)` | `Row[]` | `Doctor[]` |
+| `listAddresses(rows)` | `Row[]` | distinct office + facility addresses (original text) |
+| `listChoices(rows)` | `Row[]` | `{professions, insurances, languages}` for the dropdowns: each value once, spelled as it first appears, A to Z |
+| `milesBetween(a, b)` | two `Point`s | miles, rounded to 0.1 |
+| `rankDoctors(doctors, patientPoint, points, filters)` | see shapes below | `Result[]`, best first, already cut to the limit or the top 20 |
+| `buildResultsTable(results, filters, searchedAtText)` | `Result[]`, Filters, text like `"2026-11-21 3:42 PM"` | 2D array for the Results tab (row 1 criteria, row 2 headers, then rows). Links are `=HYPERLINK(url, label)`, which **works in both Sheets and Excel** |
+
+**Data shapes** (examples are made up):
+```
+Row      { rowNumber: 2, doctorName: "Dr. Sample A", profession: "Cardiology",
+           officeAddress: "330 Park Blvd, San Diego, CA 92101",
+           facilityName: "Harbor Surgery Center (sample)",
+           facilityAddress: "202 C St, San Diego, CA 92101",
+           insurance: ["Aetna", "Cigna"], languages: ["English", "Spanish"] }
+Doctor   { name, profession, offices: ["<address>", ...],
+           centers: [{ name, address }, ...], insurance: [...], languages: [...] }
+Point    { lat: 32.7157, lng: -117.1611 }
+points   { "<normalized address>": Point, ... }   // not-found addresses are simply absent
+Filters  { profession: "Cardiology", maxMiles: 25 | null,
+           insurance: "Aetna" | null, language: null }   // null or "" = Any
+Result   { rank: 1, doctor, profession,
+           office: { address, miles } | null,
+           center: { name, address, miles } | null,
+           otherCenters: [{ name, address, miles }], insurance, languages,
+           note: "" | "No office listed" | "No surgery center listed"
+                    | "Office address not found" | "Surgery center address not found" }   // D18
+```
+
+## 5. Stored data
+Full columns are in data.md. In short:
+
+| Tab | Read by | Written by | Notes |
+|---|---|---|---|
+| Doctors | P-3 → `readDoctorRows` | **nobody** (R7) | Columns found by header text |
+| Locations | P-3 → builds `points` | P-4 after each lookup | Cache keyed by normalized address. `NOT FOUND` rows aren't retried |
+| Results | staff | P-4 from `buildResultsTable` | Cleared each search. No patient address |
+
+## 6. Errors
+- **Logic.js:** throws `Error("<plain-English message>")`, or returns `warnings` for problems that shouldn't stop a search.
+- **Code.js:** catches errors at each entry point and shows the message through P-7 or the sidebar. It never shows a raw stack trace to staff.
+- The messages themselves live in spec §7. Use that wording.
+
+## 7. Rules for every platform (now and Excel)
+R5 (report duplicates, never delete or skip), R7 (never write Doctors, never store the patient's address), R8 (plain messages) and the data.md layout are **platform rules, not Google rules.** Any new platform layer must keep them.
+
+---
+
+## 8. Adding Excel (future step, not started)
+**Today Excel is supported by import:** staff import the .xlsx into the Google Sheet (D1, setup.md F). This section is about running Doctor Finder **inside Excel itself.**
+
+### What carries over unchanged
+- `Logic.js` and its tests: the same file, no edits.
+- The data layout: the same 3 tabs and the same headers. Excel's `range.values` is also a 2D array, the same shape as P-3.
+- The Results table, including the `HYPERLINK` formulas.
+- The form layout in `Sidebar.html`. Only its few `google.script.run` calls change, so keep them together near the bottom of that file.
+
+### What must be rebuilt: the platform layer (§3, P-1 to P-9)
+| # | Excel option (verify against Microsoft's docs at that step) |
+|---|---|
+| P-1, P-2 | A button that opens a **task pane** (an Office Add-in; the panel is an HTML page) |
+| P-3, P-4, P-5 | Office.js: `Excel.run(...)`, `range.values`, `worksheets.add()` |
+| **P-6** | **No built-in geocoder in Excel. This is the hardest part.** Options below |
+| P-7 | A message in the task pane, or the Office dialog API |
+| P-8 | No 6-minute cutoff, but the geocoder's rate limit sets the pace instead |
+| P-9 | `new Date()`, the same as now |
+
+### Ways to run inside Excel
+| Option | Reuses Logic.js? | Install for staff | Address lookup | Notes |
+|---|---|---|---|---|
+| **A. Office Add-in (task pane)**: PROPOSED | **Yes**, the same file | Harder: files hosted on HTTPS (e.g. GitHub Pages), plus a manifest that's sideloaded or deployed by an M365 admin | Outside service (below) | The closest match to the Sheets version |
+| B. Office Scripts | Partly (TypeScript; copy and adjust) | Needs a business or education M365 license (personal plans: preview only) | `fetch`, but only to services that allow CORS `*` | No side panel. Input goes in cells |
+| C. VBA macro workbook (.xlsm) | **No**, it's a rewrite in VBA (two copies of the logic to keep in sync) | Open the file. Macro security warnings and blocks on downloaded files | Web call from VBA | Desktop Excel only, not Excel on the web |
+| D. Keep importing into Sheets | n/a | Nothing new | Google's | What we have today. Zero work |
+
+### Address lookup options for Excel (P-6)
+| Service | Key? | Limits / catches |
+|---|---|---|
+| US Census Geocoder | No | Free, US addresses only. **No CORS**, so a browser task pane must use its JSONP mode. Reported to have downtime |
+| OpenStreetMap Nominatim | No | About 1 request/second and a usage policy to follow (attribution, no bulk use). Check the current policy |
+| Paid services (Azure Maps, Google Geocoding API, etc.) | **Yes** | Breaks D10 (no keys, no billing) unless the owner agrees |
+
+The Locations cache carries over, so each address is still looked up only once per workbook.
+
+### Decide before starting the Excel step
+1. Which Excel do staff use: desktop (Windows/Mac), Excel on the web, or both?
+2. Which Microsoft 365 plan: business/education or personal/family? That decides whether Office Scripts or admin deployment is possible.
+3. Is it OK to host the add-in files on a free HTTPS host (e.g. GitHub Pages)? Who installs the add-in?
+4. Which geocoder? A free one with limits, or a paid one with a key (that would reopen D10)?
+5. Is the Sheets version kept alongside Excel, or replaced?
+
+### Rough plan if Option A is chosen (log the choice in decisions.md first)
+1. New folder `excel-addin/` (needs owner OK, CLAUDE.md rule 9): `manifest.xml`, `taskpane.html` (adapted from Sidebar.html), `Excel.js` (P-1 to P-9). The task pane loads `apps-script/Logic.js` as-is.
+2. Build P-6 with the chosen geocoder, keeping the same `points` shape.
+3. Hand-test the same flows as progress.md step 7, in Excel.
+4. Add an "Excel" part to setup.md (install the add-in, then use it).
+5. Rules check: Office.js comes from Microsoft's own CDN. Log that as an exception to rule 4 in decisions.md.

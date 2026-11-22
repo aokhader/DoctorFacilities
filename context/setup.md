@@ -99,7 +99,7 @@ Updating the code: paste the changed file over its copy in the editor, Save, the
 - From the project folder run:
 
 ```bash
-node --test tests/
+node --test
 ```
 
 - The tests cover `Logic.js` only. Anything that touches Google (menus, lookups, tabs) is checked by hand with the sample sheet:

@@ -9,7 +9,7 @@ The tool uses three tabs in one Google Sheet. It **only reads** Doctors. It owns
 | `Results` | The tool | The latest search. Cleared at the start of each search |
 
 ## Doctors tab (read only — R7)
-Row 1 holds the headers. Columns are found **by header text** (trimmed, case-insensitive), so order doesn't matter and extra columns are ignored. The header names live in one block at the top of `Code.js`, so renaming a header means changing only that line.
+Row 1 holds the headers. Columns are found **by header text** (trimmed, case-insensitive), so order doesn't matter and extra columns are ignored. The header names live in one block (`COLUMN_NAMES`) at the top of `Logic.js`, so renaming a header means changing only that line. It's in Logic.js so a future Excel version uses the same names (D15).
 
 | Header (PROPOSED — owner to confirm real names) | Needed? | Example (made up) | Notes |
 |---|---|---|---|
@@ -71,9 +71,9 @@ What the tool makes of these rows:
 | `Rank` | 1 | 1 = best (the smallest farther-of-the-two distance) |
 | `Doctor` | Dr. Sample A | |
 | `Profession` | Cardiology | |
-| `Nearest office` | 330 Park Blvd, San Diego, CA 92101 | A link that opens Google Maps. Shows "No office listed" when there isn't one |
+| `Nearest office` | 330 Park Blvd, San Diego, CA 92101 | A link that opens Google Maps. Shows "No office listed" when there isn't one, or "Office address not found" when Google couldn't find it (D18) |
 | `Office (mi)` | 2.4 | Straight-line miles, 1 decimal place |
-| `Nearest surgery center` | Harbor Surgery Center (sample) — 202 C St, San Diego… | A link that opens Google Maps |
+| `Nearest surgery center` | Harbor Surgery Center (sample) — 202 C St, San Diego… | A link that opens Google Maps. Shows "No surgery center listed" or "Surgery center address not found" in the same way |
 | `Center (mi)` | 2.1 | |
 | `Other centers within limit` | Coast Surgery Center (sample) (11.8 mi) | Separated by `;`. With no limit: all of the doctor's other centers |
 | `Insurance` | Aetna, Cigna | |
