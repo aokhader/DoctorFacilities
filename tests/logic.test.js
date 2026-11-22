@@ -92,6 +92,17 @@ test('findDuplicates matches name + profession + facility, ignoring case and spa
   assert.equal(rows.length, 5, 'no row is removed');
 });
 
+test('describeDuplicates lists row numbers in plain words', () => {
+  assert.equal(logic.describeDuplicates([]), 'No possible duplicates found.');
+  assert.equal(logic.describeDuplicates([
+    { rowNumbers: [2, 5], doctorName: 'Jane Doe', profession: 'Cardiology', facilityName: 'Harbor Center' },
+    { rowNumbers: [3, 7, 9], doctorName: 'Sam Roe', profession: 'Orthopedics', facilityName: '' },
+  ]), 'Rows 2 and 5: Jane Doe · Cardiology · Harbor Center\n' +
+    'Rows 3, 7 and 9: Sam Roe · Orthopedics\n' +
+    '\n' +
+    'Nothing was changed. Fix these on the Doctors tab if you want to.');
+});
+
 test('groupDoctors joins one doctor across several rows', () => {
   const doctors = logic.groupDoctors(rowsOf(
     ['Dr. X', 'Cardiology', '1 Main St', 'Harbor', '202 C St', 'Aetna, Cigna', 'English'],

@@ -118,6 +118,21 @@ function findDuplicates(rows) {
     }));
 }
 
+// "2 and 5", or "2, 3 and 6". A duplicate always has at least 2 rows.
+function joinRowNumbers(rowNumbers) {
+  return rowNumbers.slice(0, -1).join(', ') + ' and ' + rowNumbers[rowNumbers.length - 1];
+}
+
+// The text of the Check for duplicates popup.
+function describeDuplicates(duplicates) {
+  if (duplicates.length === 0) return 'No possible duplicates found.';
+  return duplicates
+    .map(duplicate => 'Rows ' + joinRowNumbers(duplicate.rowNumbers) + ': ' +
+      [duplicate.doctorName, duplicate.profession, duplicate.facilityName].filter(text => text !== '').join(' · '))
+    .concat('', 'Nothing was changed. Fix these on the Doctors tab if you want to.')
+    .join('\n');
+}
+
 function groupDoctors(rows) {
   return groupBy(rows, row => matchKey([row.doctorName, row.profession])).map(group => ({
     name: group[0].doctorName,
@@ -288,7 +303,7 @@ function buildResultsTable(results, filters, searchedAtText) {
 if (typeof module !== 'undefined') {
   module.exports = {
     COLUMN_NAMES, DEFAULT_MAX_MILES, TOP_N_WHEN_NO_LIMIT, RESULT_HEADERS,
-    normalizeText, splitList, readDoctorRows, findDuplicates, groupDoctors,
+    normalizeText, splitList, readDoctorRows, findDuplicates, describeDuplicates, groupDoctors,
     listAddresses, listChoices, milesBetween, rankDoctors, buildResultsTable,
   };
 }
