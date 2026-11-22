@@ -21,6 +21,9 @@ const RESULT_HEADERS = [
   'Nearest surgery center', 'Center (mi)', 'Other centers within limit', 'Insurance', 'Languages',
 ];
 
+const LOCATION_HEADERS = ['Address', 'Latitude', 'Longitude', 'Google matched as', 'Looked up on'];
+const NOT_FOUND = 'NOT FOUND';
+
 // ---------- Text ----------
 
 function normalizeText(text) {
@@ -118,6 +121,21 @@ function findDuplicates(rows) {
     }));
 }
 
+// "2 and 5", or "2, 3 and 6". A duplicate always has at least 2 rows.
+function joinRowNumbers(rowNumbers) {
+  return rowNumbers.slice(0, -1).join(', ') + ' and ' + rowNumbers[rowNumbers.length - 1];
+}
+
+// The text of the Check for duplicates popup.
+function describeDuplicates(duplicates) {
+  if (duplicates.length === 0) return 'No possible duplicates found.';
+  return duplicates
+    .map(duplicate => 'Rows ' + joinRowNumbers(duplicate.rowNumbers) + ': ' +
+      [duplicate.doctorName, duplicate.profession, duplicate.facilityName].filter(text => text !== '').join(' · '))
+    .concat('', 'Nothing was changed. Fix these on the Doctors tab if you want to.')
+    .join('\n');
+}
+
 function groupDoctors(rows) {
   return groupBy(rows, row => matchKey([row.doctorName, row.profession])).map(group => ({
     name: group[0].doctorName,
@@ -147,6 +165,115 @@ function listChoices(rows) {
     professions: sortAtoZ(uniqueText(rows.map(row => row.profession))),
     insurances: sortAtoZ(uniqueText(rows.flatMap(row => row.insurance))),
     languages: sortAtoZ(uniqueText(rows.flatMap(row => row.languages))),
+  };
+}
+
+// ---------- The Locations tab (saved address lookups) ----------
+
+const DAILY_LIMIT_MESSAGE = "Google's daily address lookup limit was reached. Try again tomorrow — " +
+  'addresses already looked up still work.';
+const LOOKUP_PROBLEM_MESSAGE = "Google's address lookup had a problem. Try again in a few minutes.";
+// Google's place types for a match that is only a whole state or country: too vague to measure miles from (D20).
+const TOO_VAGUE_TYPES = ['administrative_area_level_1', 'country'];
+
+// Sorts the doctors' addresses into saved points, ones Google couldn't find, and ones still to look up.
+// If an address is on the Locations tab twice, the later row wins.
+function planLookups(addresses, locationValues) {
+  const points = {};
+  const notFound = new Set();
+  locationValues.slice(1).forEach(cells => {
+    const key = normalizeText(cells[0]);
+    if (key === '') return;
+    if (cleanText(cells[3]) === NOT_FOUND) {
+      notFound.add(key);
+      delete points[key];
+    } else if (typeof cells[1] === 'number' && typeof cells[2] === 'number') {
+      points[key] = { lat: cells[1], lng: cells[2] };
+      notFound.delete(key);
+    }
+  });
+  const isSaved = address => Boolean(points[normalizeText(address)]) || notFound.has(normalizeText(address));
+  return {
+    points: points,
+    notFound: addresses.filter(address => notFound.has(normalizeText(address))),
+    toLookUp: addresses.filter(address => !isSaved(address)),
+  };
+}
+
+// One row for the Locations tab. match is null when Google couldn't find the address.
+function locationRow(address, match, todayText) {
+  return match
+    ? [address, match.lat, match.lng, match.matchedAs, todayText]
+    : [address, '', '', NOT_FOUND, todayText];
+}
+
+// Reads the answer from Google's geocoder: { lat, lng, matchedAs }, or null if it couldn't place the address.
+function readGeocoderAnswer(response) {
+  // INVALID_REQUEST is saved as not found too, so one odd address can't block every later lookup.
+  if (response.status === 'ZERO_RESULTS' || response.status === 'INVALID_REQUEST') return null;
+  if (response.status === 'OVER_QUERY_LIMIT' || response.status === 'OVER_DAILY_LIMIT') {
+    throw new Error(DAILY_LIMIT_MESSAGE);
+  }
+  if (response.status !== 'OK') throw new Error(LOOKUP_PROBLEM_MESSAGE);
+  const best = response.results[0];
+  if ((best.types || []).some(type => TOO_VAGUE_TYPES.includes(type))) return null;
+  return { lat: best.geometry.location.lat, lng: best.geometry.location.lng, matchedAs: best.formatted_address };
+}
+
+// A warning that lists the addresses Google couldn't find, or '' if there are none.
+function describeNotFound(addresses) {
+  if (addresses.length === 0) return '';
+  return "Google couldn't find these addresses, so they're left out of the distances: " + addresses.join('; ') +
+    '. Fix the spelling on the Doctors tab and they will be looked up again.';
+}
+
+// ---------- The search form ----------
+
+const NO_MATCHES_MESSAGE = 'No doctors matched. Try a larger distance or Any insurance.';
+
+// Checks what staff typed in the sidebar and turns it into { location, filters }.
+function readSearchForm(form) {
+  const location = cleanText(form.location);
+  if (location === '') throw new Error("Type the patient's ZIP code or address.");
+  const profession = cleanText(form.profession);
+  if (profession === '') throw new Error('Pick a profession.');
+  const milesText = cleanText(form.maxMiles);
+  const maxMiles = milesText === '' ? null : Number(milesText);
+  if (maxMiles !== null && !(Number.isFinite(maxMiles) && maxMiles > 0)) {
+    throw new Error('Max miles must be a number above 0, like 25. Leave it blank for any distance.');
+  }
+  return {
+    location: location,
+    filters: {
+      profession: profession,
+      maxMiles: maxMiles,
+      insurance: cleanText(form.insurance) || null,
+      language: cleanText(form.language) || null,
+    },
+  };
+}
+
+function countOf(count, word) {
+  return count + ' ' + word + (count === 1 ? '' : 's');
+}
+
+// What the sidebar shows after a search: one message, plus warnings that didn't stop the search.
+function summarizeSearch(outcome) {
+  const left = outcome.notLookedUpCount;
+  return {
+    message: outcome.foundCount === 0
+      ? NO_MATCHES_MESSAGE
+      : 'Found ' + countOf(outcome.foundCount, 'doctor') + ' — see the Results tab.',
+    warnings: outcome.rowWarnings.concat(
+      outcome.duplicateCount > 0
+        ? countOf(outcome.duplicateCount, 'possible duplicate') + ' — use Check for duplicates.'
+        : '',
+      describeNotFound(outcome.notFound),
+      left > 0
+        ? (left === 1 ? "1 address isn't" : left + " addresses aren't") + ' looked up yet, so some doctors may be ' +
+          'missing. Run Doctor Finder → Look up all addresses, then search again.'
+        : '',
+    ).filter(text => text !== ''),
   };
 }
 
@@ -224,7 +351,10 @@ function scoreOf(result) {
 
 function compareResults(a, b) {
   const centerMiles = result => (result.center ? result.center.miles : Infinity);
-  return scoreOf(a) - scoreOf(b) ||
+  // Doctors whose office we can measure come first, even if a doctor without one is closer (D25).
+  const noOffice = result => (result.office ? 0 : 1);
+  return noOffice(a) - noOffice(b) ||
+    scoreOf(a) - scoreOf(b) ||
     centerMiles(a) - centerMiles(b) ||
     a.doctor.localeCompare(b.doctor);
 }
@@ -287,8 +417,10 @@ function buildResultsTable(results, filters, searchedAtText) {
 // Lets Node load this file for tests. Apps Script ignores it.
 if (typeof module !== 'undefined') {
   module.exports = {
-    COLUMN_NAMES, DEFAULT_MAX_MILES, TOP_N_WHEN_NO_LIMIT, RESULT_HEADERS,
-    normalizeText, splitList, readDoctorRows, findDuplicates, groupDoctors,
-    listAddresses, listChoices, milesBetween, rankDoctors, buildResultsTable,
+    COLUMN_NAMES, DEFAULT_MAX_MILES, TOP_N_WHEN_NO_LIMIT, RESULT_HEADERS, LOCATION_HEADERS, NOT_FOUND,
+    DAILY_LIMIT_MESSAGE, LOOKUP_PROBLEM_MESSAGE, NO_MATCHES_MESSAGE,
+    normalizeText, splitList, readDoctorRows, findDuplicates, describeDuplicates, groupDoctors,
+    listAddresses, listChoices, planLookups, locationRow, readGeocoderAnswer, describeNotFound,
+    readSearchForm, summarizeSearch, milesBetween, rankDoctors, buildResultsTable,
   };
 }

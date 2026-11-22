@@ -1,6 +1,6 @@
 # Architecture
 
-Status 2026-11-21: **Logic layer built and tested (steps 1–2). Code.js and Sidebar.html not built yet.** This is the target that build steps 1–6 implement. If the code drifts from it, update this file in the same session.
+Status 2026-11-22: **All three layers are built (steps 1–6) and checked in real Google Sheets (checkpoints A and B).** This is the target that build steps 1–6 implement. If the code drifts from it, update this file in the same session.
 
 Purpose: show how the pieces fit, and keep the Google-only code small, so **Excel support (§8) only has to replace one layer.**
 
@@ -43,14 +43,15 @@ There are three layers. Only the middle one knows about Google.
 The patient's location lives **in memory only** (R7). ⚠ marks each place it passes through.
 
 1. Staff click **Doctor Finder → Find doctors…** → `showSearchPanel()` opens `Sidebar.html`.
-2. The sidebar calls `getSearchChoices()`. Code.js reads Doctors, `Logic.readDoctorRows()` → `Logic.listChoices(rows)` + `Logic.findDuplicates(rows).length` → dropdowns filled.
-3. Staff fill the form and click **Find doctors**. ⚠ The sidebar sends `{location, profession, maxMiles, insurance, language}` to `searchDoctors(form)`.
-4. Code.js reads Doctors → `Logic.readDoctorRows(values)` → rows, or a missing-header message (spec §7).
-5. `Logic.listAddresses(rows)` → Code.js looks up any address not yet in Locations, saves the result, and builds `points`.
-6. ⚠ Code.js geocodes `form.location` → `patientPoint` (not saved anywhere).
-7. `Logic.groupDoctors(rows)` → doctors. `Logic.rankDoctors(doctors, patientPoint, points, filters)` → results.
-8. `Logic.buildResultsTable(results, filters, searchedAtText)` → a 2D array (no patient address). Code.js clears Results and writes it.
-9. Code.js returns `{foundCount, warnings}` → the sidebar shows "Found 7 doctors — see the Results tab" + warnings. ⚠ The location is discarded here.
+2. The sidebar calls `getSearchChoices()`. Code.js reads Doctors, `Logic.readDoctorRows()` → `Logic.listChoices(rows)` + `DEFAULT_MAX_MILES` → dropdowns filled, Max miles pre-filled.
+3. Staff fill the form and click **Find doctors**. ⚠ The sidebar sends `{location, profession, maxMiles, insurance, language}` (all text) to `searchDoctors(form)`.
+4. ⚠ `Logic.readSearchForm(form)` → `{location, filters}`, or a plain message for a blank location, no profession, or bad Max miles.
+5. Code.js reads Doctors → `Logic.readDoctorRows(values)` → rows, or a missing-header message (spec §7).
+6. ⚠ Code.js geocodes `location` → `patientPoint` (not saved anywhere), or "Couldn't find that location…".
+7. `Logic.listAddresses(rows)` → Code.js looks up any address not yet in Locations (stopping at about 5 min), saves each result, and builds `points` with `Logic.planLookups`.
+8. `Logic.groupDoctors(rows)` → doctors. `Logic.rankDoctors(doctors, patientPoint, points, filters)` → results.
+9. `Logic.buildResultsTable(results, filters, searchedAtText)` → a 2D array (no patient address). Code.js clears Results, writes it, and switches to it.
+10. `Logic.summarizeSearch(...)` → `{message, warnings}` → the sidebar shows "Found 7 doctors — see the Results tab." plus warnings (rows left out, possible duplicates, addresses not found, addresses not looked up yet). ⚠ The location is discarded here.
 
 **Other menu items:**
 - **Check for duplicates:** read Doctors → `readDoctorRows` → `findDuplicates` → popup.
@@ -69,15 +70,32 @@ The patient's location lives **in memory only** (R7). ⚠ marks each place it pa
 | P-6 | Look up one address → point, or null | `Maps.newGeocoder().setRegion('us').geocode()` |
 | P-7 | Show a popup message | `SpreadsheetApp.getUi().alert()` |
 | P-8 | Stop long work before the time limit | Check the elapsed time; stop at about 5 min (the limit is about 6) |
-| P-9 | Know "today" for `Looked up on`, and the search time for the Results tab | `new Date()`, formatted in the sheet's time zone (`yyyy-mm-dd`; `yyyy-mm-dd h:mm a`). Logic.js gets ready-made text, so it has no time zones |
+| P-9 | Know "today" for `Looked up on`, and the search time for the Results tab | `new Date()`, formatted in the sheet's time zone, or the script's if the sheet has none (D22) (`yyyy-mm-dd`; `yyyy-mm-dd h:mm a`). Logic.js gets ready-made text, so it has no time zones |
 
 **Entry points (the names the menu and sidebar call):**
 - `onOpen()`
 - `showSearchPanel()`
 - `showDuplicates()`
 - `lookUpAllAddresses()`
-- `getSearchChoices()` → `{professions, insurances, languages, duplicateCount}`
-- `searchDoctors(form)` → `{foundCount, warnings}`
+- `getSearchChoices()` → `{professions, insurances, languages, defaultMaxMiles}` or `{error}`
+- `searchDoctors(form)` → `{message, warnings}` or `{error}`
+
+The two sidebar functions **return** `{error: "<message>"}` instead of throwing, so the sidebar shows our message as written. The sidebar's failure handler is only for problems we couldn't catch, like a lost connection.
+
+**Code.js's own helpers:**
+
+| Helper | Job |
+|---|---|
+| `readDoctors()` | P-3. Throws the missing-tab message |
+| `readTab(name)` | P-3. Returns `[]` if the tab is missing |
+| `getOrCreateTab(name)`, `openLocationsTab()` | P-5. Locations gets bold, frozen headers, put back if the tab is emptied |
+| `lookUpNewAddresses(addresses, stopAt)` | P-6 + P-8. `appendRow` after each lookup, and checks the clock after each one |
+| `findPlace(address)` | P-6. Turns Google's "too many times…" errors into the spec §7 messages |
+| `writeResults(table)` | P-4 + P-5. Clears Results, writes the table, bold + frozen header row 2, fits columns B onward (A holds the long search line), switches to the tab |
+| `formatNow(pattern)` | P-9 |
+| `showPopup(work)`, `answerSidebar(work)`, `messageFor(error)` | P-7. Popups for menu items, `{error}` for the sidebar. Our own messages are shown as written; anything else gets a generic next step |
+
+The first line of Code.js is `@OnlyCurrentDoc`, so Google's permission screen asks only for this one spreadsheet.
 
 Code.js holds **no** matching, distance or ranking rules. If you're about to write an `if` about doctors in Code.js, it belongs in Logic.js.
 
@@ -90,6 +108,7 @@ In Apps Script every file shares one scope, so Code.js calls these by plain name
 - `COLUMN_NAMES`: the header text for each field. It lives here, not in Code.js, so every platform uses the same names (D15).
 - `DEFAULT_MAX_MILES = 25`
 - `TOP_N_WHEN_NO_LIMIT = 20` (P3)
+- `LOCATION_HEADERS`, `NOT_FOUND`: the Locations tab layout (data.md)
 
 | Function | In | Out |
 |---|---|---|
@@ -97,6 +116,13 @@ In Apps Script every file shares one scope, so Code.js calls these by plain name
 | `splitList(cell)` | `"Aetna; Cigna"` | `["Aetna", "Cigna"]` |
 | `readDoctorRows(values)` | 2D array, header row first | `{rows: Row[], warnings: string[]}`. **Throws** a plain-English Error if any of the 7 headers is missing. Rows with a blank name or profession are left out, with a warning (P7, D17) |
 | `findDuplicates(rows)` | `Row[]` | `[{rowNumbers: [2, 5], doctorName, profession, facilityName}]` |
+| `describeDuplicates(duplicates)` | output of `findDuplicates` | popup text: "Rows 2 and 5: …", or "No possible duplicates found." |
+| `planLookups(addresses, locationValues)` | addresses + the Locations tab's 2D array | `{points, notFound: [address], toLookUp: [address]}`. NOT FOUND rows are not retried. If an address is on the tab twice, the later row wins |
+| `locationRow(address, match, todayText)` | a match or `null` | the 5 Locations cells, or a `NOT FOUND` row |
+| `readGeocoderAnswer(response)` | Google's geocoder answer | `{lat, lng, matchedAs}` or `null` (not found, or only a state or country, D20). **Throws** the daily-limit message or the "had a problem" message |
+| `describeNotFound(addresses)` | addresses not found | a warning that says how to fix them, or `''` |
+| `readSearchForm(form)` | the sidebar's text fields | `{location, filters}`. **Throws** the plain message for a blank location, no profession, or a Max miles that isn't a number above 0. Blank Max miles = any distance |
+| `summarizeSearch(outcome)` | `{foundCount, rowWarnings, duplicateCount, notFound, notLookedUpCount}` | `{message, warnings}` for the sidebar |
 | `groupDoctors(rows)` | `Row[]` | `Doctor[]` |
 | `listAddresses(rows)` | `Row[]` | distinct office + facility addresses (original text) |
 | `listChoices(rows)` | `Row[]` | `{professions, insurances, languages}` for the dropdowns: each value once, spelled as it first appears, A to Z |
@@ -136,7 +162,7 @@ Full columns are in data.md. In short:
 
 ## 6. Errors
 - **Logic.js:** throws `Error("<plain-English message>")`, or returns `warnings` for problems that shouldn't stop a search.
-- **Code.js:** catches errors at each entry point and shows the message through P-7 or the sidebar. It never shows a raw stack trace to staff.
+- **Code.js:** catches errors at each entry point and shows the message through P-7 (menu items) or returns `{error}` (sidebar calls). It never shows a raw stack trace to staff.
 - The messages themselves live in spec §7. Use that wording.
 
 ## 7. Rules for every platform (now and Excel)

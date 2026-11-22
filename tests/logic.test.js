@@ -92,6 +92,17 @@ test('findDuplicates matches name + profession + facility, ignoring case and spa
   assert.equal(rows.length, 5, 'no row is removed');
 });
 
+test('describeDuplicates lists row numbers in plain words', () => {
+  assert.equal(logic.describeDuplicates([]), 'No possible duplicates found.');
+  assert.equal(logic.describeDuplicates([
+    { rowNumbers: [2, 5], doctorName: 'Jane Doe', profession: 'Cardiology', facilityName: 'Harbor Center' },
+    { rowNumbers: [3, 7, 9], doctorName: 'Sam Roe', profession: 'Orthopedics', facilityName: '' },
+  ]), 'Rows 2 and 5: Jane Doe · Cardiology · Harbor Center\n' +
+    'Rows 3, 7 and 9: Sam Roe · Orthopedics\n' +
+    '\n' +
+    'Nothing was changed. Fix these on the Doctors tab if you want to.');
+});
+
 test('groupDoctors joins one doctor across several rows', () => {
   const doctors = logic.groupDoctors(rowsOf(
     ['Dr. X', 'Cardiology', '1 Main St', 'Harbor', '202 C St', 'Aetna, Cigna', 'English'],
@@ -124,6 +135,99 @@ test('listAddresses and listChoices give each value once', () => {
   });
 });
 
+// ---------- The Locations tab ----------
+
+test('planLookups: saved points, not-found addresses, and what is still to look up', () => {
+  const locationValues = [
+    logic.LOCATION_HEADERS,
+    ['1 Main St', 32.7, -117.1, '1 Main St, Town, CA, USA', '2026-11-20'],
+    ['9 Bad Rd', '', '', 'NOT FOUND', '2026-11-20'],
+    ['5 Oak Ave', '', '', 'someone cleared the numbers', '2026-11-20'],
+    ['7 Elm St', '', '', 'NOT FOUND', '2026-11-20'],
+    ['  7 elm  st ', 32.9, -117.3, '7 Elm St, Town, CA, USA', '2026-11-21'], // later row wins
+  ];
+  const addresses = ['1 MAIN ST', '9 Bad Rd', '5 Oak Ave', '7 Elm St', '2 New St'];
+  assert.deepEqual(logic.planLookups(addresses, locationValues), {
+    points: { '1 main st': { lat: 32.7, lng: -117.1 }, '7 elm st': { lat: 32.9, lng: -117.3 } },
+    notFound: ['9 Bad Rd'],
+    toLookUp: ['5 Oak Ave', '2 New St'],
+  });
+  assert.deepEqual(logic.planLookups(['1 Main St'], []).toLookUp, ['1 Main St'], 'no Locations tab yet');
+  assert.deepEqual(logic.planLookups(['1 Main St'], [['']]).toLookUp, ['1 Main St'], 'an empty tab');
+});
+
+test('locationRow writes a found or NOT FOUND row', () => {
+  assert.deepEqual(logic.locationRow('1 Main St', { lat: 1, lng: 2, matchedAs: '1 Main St, USA' }, '2026-11-21'),
+    ['1 Main St', 1, 2, '1 Main St, USA', '2026-11-21']);
+  assert.deepEqual(logic.locationRow('9 Bad Rd', null, '2026-11-21'), ['9 Bad Rd', '', '', 'NOT FOUND', '2026-11-21']);
+});
+
+test('readGeocoderAnswer: a street, ZIP or city counts; a whole state or country does not (D20)', () => {
+  const answer = (types, status) => ({
+    status: status || 'OK',
+    results: [{ formatted_address: 'Somewhere, USA', geometry: { location: { lat: 1, lng: 2 } }, types: types }],
+  });
+  const found = { lat: 1, lng: 2, matchedAs: 'Somewhere, USA' };
+  assert.deepEqual(logic.readGeocoderAnswer(answer(['street_address'])), found);
+  assert.deepEqual(logic.readGeocoderAnswer(answer(['postal_code'])), found);
+  assert.deepEqual(logic.readGeocoderAnswer(answer(['locality', 'political'])), found);
+  assert.equal(logic.readGeocoderAnswer(answer(['administrative_area_level_1', 'political'])), null);
+  assert.equal(logic.readGeocoderAnswer(answer(['country', 'political'])), null);
+  assert.equal(logic.readGeocoderAnswer({ status: 'ZERO_RESULTS', results: [] }), null);
+  assert.equal(logic.readGeocoderAnswer({ status: 'INVALID_REQUEST', results: [] }), null);
+  assert.throws(() => logic.readGeocoderAnswer({ status: 'OVER_QUERY_LIMIT', results: [] }),
+    { message: logic.DAILY_LIMIT_MESSAGE });
+  assert.throws(() => logic.readGeocoderAnswer({ status: 'UNKNOWN_ERROR', results: [] }),
+    { message: logic.LOOKUP_PROBLEM_MESSAGE });
+});
+
+test('describeNotFound lists the addresses and says how to fix them', () => {
+  assert.equal(logic.describeNotFound([]), '');
+  assert.equal(logic.describeNotFound(['9 Bad Rd', '8 Odd Ln']),
+    "Google couldn't find these addresses, so they're left out of the distances: 9 Bad Rd; 8 Odd Ln. " +
+    'Fix the spelling on the Doctors tab and they will be looked up again.');
+});
+
+// ---------- The search form ----------
+
+test('readSearchForm trims the form and turns blanks into Any', () => {
+  assert.deepEqual(
+    logic.readSearchForm({ location: ' 92101 ', profession: 'Cardiology', maxMiles: ' 2.5 ', insurance: '', language: 'Spanish' }),
+    { location: '92101', filters: { profession: 'Cardiology', maxMiles: 2.5, insurance: null, language: 'Spanish' } });
+  assert.equal(logic.readSearchForm({ location: '92101', profession: 'Cardiology', maxMiles: '' }).filters.maxMiles, null,
+    'blank max miles = any distance');
+});
+
+test('readSearchForm: each missing or bad field gives its plain-English message', () => {
+  const form = extra => Object.assign({ location: '92101', profession: 'Cardiology', maxMiles: '25' }, extra);
+  assert.throws(() => logic.readSearchForm(form({ location: '  ' })), { message: "Type the patient's ZIP code or address." });
+  assert.throws(() => logic.readSearchForm(form({ profession: '' })), { message: 'Pick a profession.' });
+  for (const maxMiles of ['0', '-5', 'abc', '25 miles', 'Infinity']) {
+    assert.throws(() => logic.readSearchForm(form({ maxMiles })),
+      { message: 'Max miles must be a number above 0, like 25. Leave it blank for any distance.' }, maxMiles);
+  }
+});
+
+test('summarizeSearch: the found message plus each kind of warning', () => {
+  const outcome = extra => Object.assign(
+    { foundCount: 7, rowWarnings: [], duplicateCount: 0, notFound: [], notLookedUpCount: 0 }, extra);
+  assert.deepEqual(logic.summarizeSearch(outcome()), { message: 'Found 7 doctors — see the Results tab.', warnings: [] });
+  assert.equal(logic.summarizeSearch(outcome({ foundCount: 1 })).message, 'Found 1 doctor — see the Results tab.');
+  assert.equal(logic.summarizeSearch(outcome({ foundCount: 0 })).message, logic.NO_MATCHES_MESSAGE);
+  assert.deepEqual(logic.summarizeSearch(outcome({
+    rowWarnings: ["Row 9 has no Doctor Name, so it's left out of searches."],
+    duplicateCount: 3, notFound: ['9 Bad Rd'], notLookedUpCount: 1,
+  })).warnings, [
+    "Row 9 has no Doctor Name, so it's left out of searches.",
+    '3 possible duplicates — use Check for duplicates.',
+    logic.describeNotFound(['9 Bad Rd']),
+    "1 address isn't looked up yet, so some doctors may be missing. " +
+      'Run Doctor Finder → Look up all addresses, then search again.',
+  ]);
+  assert.match(logic.summarizeSearch(outcome({ duplicateCount: 1, notLookedUpCount: 40 })).warnings.join('\n'),
+    /^1 possible duplicate — .*\n40 addresses aren't looked up yet/);
+});
+
 // ---------- Distance and ranking ----------
 
 test('milesBetween: same point is 0, one degree of latitude is about 69.1 miles', () => {
@@ -150,23 +254,25 @@ test('rankDoctors sorts by the farther of office and center, then center miles, 
   assert.deepEqual(names(within6), ['Dr. Aaa', 'Dr. W', 'Dr. Y'], 'office AND center must both be within the limit');
 });
 
-test('rankDoctors: a doctor with only one kind of location is ranked by it, with a note', () => {
+test('rankDoctors: a doctor with only one kind of location is ranked by it, with a note; known offices come first (D25)', () => {
   const doctors = [
-    makeDoctor('Dr. No Office', [], [center('C', placeNorth(0.05))]),
-    makeDoctor('Dr. Office Not Found', ['Nowhere'], [center('C', placeNorth(0.06))]),
-    makeDoctor('Dr. No Center', [placeNorth(0.07)], []),
-    makeDoctor('Dr. Center Not Found', [placeNorth(0.08)], [center('C', 'Nowhere')]),
+    makeDoctor('Dr. No Office', [], [center('C', placeNorth(0.05))]),                // 3.5, but no office
+    makeDoctor('Dr. Office Not Found', ['Nowhere'], [center('C', placeNorth(0.06))]), // 4.1, office not placed
+    makeDoctor('Dr. No Center', [placeNorth(0.07)], []),                              // 4.8
+    makeDoctor('Dr. Center Not Found', [placeNorth(0.08)], [center('C', 'Nowhere')]), // 5.5
+    makeDoctor('Dr. Both', [placeNorth(0.2)], [center('C', placeNorth(0.1))]),        // 13.8
     makeDoctor('Dr. Nothing Found', ['Nowhere'], []),
   ];
   const ranked = logic.rankDoctors(doctors, PATIENT_AT_ZERO, testPoints, anyFilters({ maxMiles: 25 }));
   assert.deepEqual(ranked.map(result => [result.doctor, result.note]), [
-    ['Dr. No Office', 'No office listed'],
-    ['Dr. Office Not Found', 'Office address not found'],
     ['Dr. No Center', 'No surgery center listed'],
     ['Dr. Center Not Found', 'Surgery center address not found'],
+    ['Dr. Both', ''],
+    ['Dr. No Office', 'No office listed'],
+    ['Dr. Office Not Found', 'Office address not found'],
   ]);
-  assert.equal(ranked[0].office, null);
-  assert.equal(ranked[0].center.miles, 3.5);
+  assert.equal(ranked[3].office, null);
+  assert.equal(ranked[3].center.miles, 3.5);
 });
 
 test('rankDoctors lists the other centers within the limit, nearest first', () => {
@@ -291,11 +397,12 @@ test('sample CSV: has every case from data.md and runs end to end through the lo
   const search = extra => logic.rankDoctors(doctors, DOWNTOWN_PATIENT, points, anyFilters(extra));
 
   const cardiology25 = search({ maxMiles: 25 });
-  assert.deepEqual(names(cardiology25), ['Dr. Sample A', 'Dr. Sample E', 'Dr. Sample C'], 'far Oceanside doctor dropped');
+  assert.deepEqual(names(cardiology25), ['Dr. Sample A', 'Dr. Sample C', 'Dr. Sample E'],
+    'far Oceanside doctor dropped; E (office not found) after the doctors with offices');
   assert.deepEqual(cardiology25[0].otherCenters.map(c => c.name),
     ['Bayview Surgery Center (sample)', 'Coast Surgery Center (sample)']);
-  assert.equal(cardiology25[1].note, 'Office address not found');
-  assert.deepEqual(names(search({})), ['Dr. Sample A', 'Dr. Sample E', 'Dr. Sample C', 'Dr. Sample D']);
+  assert.equal(cardiology25[2].note, 'Office address not found');
+  assert.deepEqual(names(search({})), ['Dr. Sample A', 'Dr. Sample C', 'Dr. Sample D', 'Dr. Sample E']);
 
   const neuro = search({ profession: 'Neurosurgery', maxMiles: 25 });
   assert.deepEqual(names(neuro), ['Dr. Sample F', 'Dr. Sample B']);
@@ -313,6 +420,6 @@ test('sample CSV: has every case from data.md and runs end to end through the lo
   assert.ok(table.every(row => row.length === logic.RESULT_HEADERS.length));
   assert.equal(table[2][3],
     '=HYPERLINK("https://www.google.com/maps/search/?api=1&query=330%20Park%20Blvd%2C%20San%20Diego%2C%20CA%2092101", "330 Park Blvd, San Diego, CA 92101")');
-  assert.equal(table[3][3], 'Office address not found');
+  assert.equal(table[4][3], 'Office address not found');
   assert.ok(!JSON.stringify(table).includes(String(DOWNTOWN_PATIENT.lat)), "the patient's location is not in the table");
 });

@@ -57,6 +57,10 @@ What the tool makes of these rows:
 | `Looked up on` | 2026-11-21 | `yyyy-mm-dd` |
 
 - Each address is looked up only once. Later searches read the saved coordinates.
+- Each lookup is saved as soon as it's done, so a run that Google stops loses nothing.
+- If Google can only place an address at state or country level (e.g. "California, USA"), it's saved as `NOT FOUND` (D20).
+- If the same address is on the tab twice, the lower row wins.
+- If the tab is emptied, the headers are put back on the next lookup.
 - `NOT FOUND` rows aren't retried, which saves the daily limit. To retry one, fix the address on the Doctors tab, or delete that row here.
 - If Google matched an address to the wrong place, delete that row, fix the address on the Doctors tab, and search again.
 - **The patient's address is never written here.**
@@ -68,7 +72,7 @@ What the tool makes of these rows:
 
 | Column | Example (illustrative numbers) | Notes |
 |---|---|---|
-| `Rank` | 1 | 1 = best (the smallest farther-of-the-two distance) |
+| `Rank` | 1 | 1 = best. Doctors whose office was found come first (D25), then the smallest farther-of-the-two distance |
 | `Doctor` | Dr. Sample A | |
 | `Profession` | Cardiology | |
 | `Nearest office` | 330 Park Blvd, San Diego, CA 92101 | A link that opens Google Maps. Shows "No office listed" when there isn't one, or "Office address not found" when Google couldn't find it (D18) |
