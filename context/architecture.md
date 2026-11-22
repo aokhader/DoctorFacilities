@@ -1,6 +1,6 @@
 # Architecture
 
-Status 2026-11-22: **All three layers are built (steps 1–6). Steps 3–4 passed in real Google Sheets (checkpoint A). The search panel and Results tab (step 5) pass offline and wait for checkpoint B.** This is the target that build steps 1–6 implement. If the code drifts from it, update this file in the same session.
+Status 2026-11-22: **All three layers are built (steps 1–6) and checked in real Google Sheets (checkpoints A and B).** This is the target that build steps 1–6 implement. If the code drifts from it, update this file in the same session.
 
 Purpose: show how the pieces fit, and keep the Google-only code small, so **Excel support (§8) only has to replace one layer.**
 
