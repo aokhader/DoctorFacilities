@@ -8,11 +8,12 @@ Rule: update this file at the end of every session. Change only the rows you wor
 - 21 tests pass.
 - A throwaway stand-in for Google (fake tabs, popups and geocoder, kept outside the repo) ran every step 3–4 "Done when" offline.
 - Checkpoint A passed in real Google Sheets on 2026-11-22, after a time zone fix (D22). Nowhere was saved as NOT FOUND, so D20 holds.
+- Steps 5–6 are built: `Sidebar.html`, Find doctors → Results tab, and every spec §7 message. They pass offline, and they're not yet checked in Google (checkpoint B).
 
 ## Now / Next / Blocked
-- **Now:** step 6 (spec §7 messages).
-- **Next:** Google checkpoint B (owner), then step 7.
-- **Blocked:** nothing.
+- **Now:** Google checkpoint B (owner): steps 5–6 on the sample sheet.
+- **Next:** step 7 (README + the owner's walkthrough of setup.md).
+- **Blocked:** steps 5–6 are marked done only after checkpoint B passes.
 
 ## Build steps (in order)
 | # | Step | Requirements | Done when | Status |
@@ -22,7 +23,7 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | 3 | `Code.js`: menu, read Doctors by header, **Check for duplicates** popup | R5 R7 R8 | The menu appears. The popup lists the sample's duplicate rows. A missing header shows its message. The Doctors tab is unchanged | done 2026-11-22 (checkpoint A checks 1–2 passed in Google) |
 | 4 | `Code.js`: address lookup, Locations tab, **Look up all addresses** | R6 R8 | Sample addresses are saved. The bad address shows NOT FOUND. A second run looks nothing up again. It stops at about 5 min with the "run again" message | done 2026-11-22 (checkpoint A passed in Google after the D22 time zone fix) |
 | 5 | `Sidebar.html` + search → Results tab | R1 R2 R3 R4 R7 | A search fills Results in the right order. Filters work. Address links open Google Maps. The patient's address appears on no tab | built 2026-11-22, passes offline (stand-in + sidebar preview); waiting for checkpoint B |
-| 6 | Failure messages | R8 | Every row of spec §7 triggered once by hand, and each message matches | todo |
+| 6 | Failure messages | R8 | Every row of spec §7 triggered once by hand, and each message matches | built 2026-11-22: §7 has every message, and the stand-in triggers each one and matches it word for word; by hand in checkpoint B |
 | 7 | `README.md` + real walkthrough (**owner**) | R9 | The owner completes setup.md Part 1 on the sample sheet alone. Menu names in setup.md fixed to match Google | todo |
 | E | **Future:** Excel support (after step 7) | R1–R9 on Excel | The owner answers architecture.md §8 "Decide before starting," and the choice is logged in decisions.md. Then follow §8's plan | not started |
 
@@ -36,7 +37,7 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | R5 | Duplicate report, never delete or skip | 1, 3 | logic done (step 1); popup done (step 3), checked in Google |
 | R6 | Locations cache + not-found report | 4 | done (step 4), checked in Google |
 | R7 | Never write Doctors; never store the patient's address | 3, 5 | Doctors unchanged (steps 3–4, checked in Google); patient ZIP on no tab offline (step 5), checkpoint B |
-| R8 | Plain-English failure messages | 3, 4, 6 | steps 3–4 messages built and in spec §7; full pass in step 6 |
+| R8 | Plain-English failure messages | 3, 4, 6 | all in spec §7 and matched offline (step 6); by hand in checkpoint B |
 | R9 | Setup guide a non-technical person can follow | 2, 7 | sample done (step 2); walkthrough in step 7 |
 
 ## Step 7 checklist (spec §3 flows, on the sample sheet)
@@ -55,3 +56,4 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | 2026-11-21 | Steps 3–4 on branch `steps-3-6-sheets`: `Code.js` (menu, duplicates popup, Look up all addresses, Locations tab). New Logic.js helpers: `describeDuplicates`, `planLookups`, `locationRow`, `readGeocoderAnswer`, `describeNotFound` (21 tests pass). Checked offline with a stand-in for Google. D20–D21 | Google checkpoint A, then step 5 |
 | 2026-11-22 | Checkpoint A: checks 1–2 passed in Google. Check 3 failed with "Invalid argument: timeZone" because the sheet had no time zone set. `formatNow` now falls back to the script's time zone (D22). The stand-in now rejects a non-text time zone and reproduces the failure on the old code | Owner re-runs checkpoint A checks 3–5, then step 5 |
 | 2026-11-22 | Checkpoint A passed. Step 5: `Sidebar.html`, "Find doctors…" menu item, `getSearchChoices`, `searchDoctors`, `writeResults`. New Logic.js `readSearchForm`, `summarizeSearch` (24 tests pass). Stand-in checks the search, filters, no matches, form messages, and that the patient ZIP is on no tab. The sidebar was previewed at 300 px with a fake Google. D23–D24 | Step 6, then checkpoint B |
+| 2026-11-22 | Step 6: spec §7 gained the form messages, the not-found warning text, the search time-limit warning and the panel-loading failure. The stand-in triggers all 16 situations and matches each message to §7 word for word (17 checks pass) | Google checkpoint B |

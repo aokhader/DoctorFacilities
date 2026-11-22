@@ -90,14 +90,19 @@ sample/doctors-sample.csv Made-up doctors at public San Diego addresses
 |---|---|
 | A header is missing | "Couldn't find the column 'Office Address' on the Doctors tab. Check the header spelling." |
 | The Doctors tab is missing (renamed) | "Couldn't find a tab named 'Doctors'. Rename the tab with the doctor list to Doctors." |
-| Patient address not found | "Couldn't find that location. Try just the ZIP code." |
-| An office or center address not found | Listed in the sidebar warnings, ignored for ranking, marked NOT FOUND on the Locations tab |
+| Patient address not found (or found only as a whole state, D20) | "Couldn't find that location. Try just the ZIP code." |
+| Patient location left blank | "Type the patient's ZIP code or address." |
+| No profession picked | "Pick a profession." |
+| Max miles isn't a number above 0 (e.g. 0, -5, "abc") | "Max miles must be a number above 0, like 25. Leave it blank for any distance." |
+| An office or center address not found | Ignored for ranking, marked NOT FOUND on the Locations tab, and listed in the sidebar warnings: "Google couldn't find these addresses, so they're left out of the distances: 123 Nowhere Rd, Nowhere, CA 00000. Fix the spelling on the Doctors tab and they will be looked up again." |
 | Daily lookup limit (1,000/day on a personal Gmail account, 10,000 on Workspace, per the Apps Script quotas page, checked 2026-11-21) | "Google's daily address lookup limit was reached. Try again tomorrow — addresses already looked up still work." |
 | Google's short-term rate limit ("too many times in a short time") | "Google asked Doctor Finder to slow down. Wait a minute and try again." |
 | Any other Google lookup problem (e.g. `UNKNOWN_ERROR`) | "Google's address lookup had a problem. Try again in a few minutes." Nothing is saved for that address, so it's retried next time |
 | Script time limit (6 min per run, per the quotas page) | Lookup stops after the first lookup past 5 min: "Looked up 180 of 400. Run Look up all addresses again to finish." |
+| A search runs out of time looking up new doctor addresses | Results are still written from the addresses already looked up, with the warning "12 addresses aren't looked up yet, so some doctors may be missing. Run Doctor Finder → Look up all addresses, then search again." |
 | All addresses looked up | "All 400 addresses are looked up (12 new this time)." Plus the not-found list, if any |
-| Anything unexpected (a bug, a Google outage) | "Something went wrong (…). Reload the sheet and try again. If it keeps happening, send a screenshot of this to whoever set up Doctor Finder." No stack trace |
+| The search panel can't read the Doctors tab when it opens | The tab or header message above, then "Then close this panel and open Doctor Finder → Find doctors… again." |
+| Anything unexpected (a bug, a Google outage, a lost connection while the search panel is open) | "Something went wrong (…). Reload the sheet and try again. If it keeps happening, send a screenshot of this to whoever set up Doctor Finder." No stack trace |
 | No matches | "No doctors matched. Try a larger distance or Any insurance." |
 
 ## 8. Privacy
