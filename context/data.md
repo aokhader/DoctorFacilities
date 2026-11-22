@@ -9,7 +9,7 @@ The tool uses three tabs in one Google Sheet. It **only reads** Doctors. It owns
 | `Results` | The tool | The latest search. Cleared at the start of each search |
 
 ## Doctors tab (read only — R7)
-Row 1 holds the headers. Columns are found **by header text** (trimmed, case-insensitive), so order doesn't matter and extra columns are ignored. The header names live in one block at the top of `Code.js`, so renaming a header means changing only that line.
+Row 1 holds the headers. Columns are found **by header text** (trimmed, case-insensitive), so order doesn't matter and extra columns are ignored. The header names live in one block (`COLUMN_NAMES`) at the top of `Logic.js`, so renaming a header means changing only that line. It's in Logic.js so a future Excel version uses the same names (D15).
 
 | Header (PROPOSED — owner to confirm real names) | Needed? | Example (made up) | Notes |
 |---|---|---|---|

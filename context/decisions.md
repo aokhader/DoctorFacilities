@@ -18,6 +18,8 @@ Rule: add a line for every decision. Don't rewrite old lines. If a decision chan
 | 2026-11-21 | D12 | The patient's address is never stored, and map links are destination only | Privacy | Claude, approved with spec |
 | 2026-11-21 | D13 | No libraries, no build step, no clasp. Install is copy and paste | Nothing for staff to install or learn | Claude, approved with spec |
 | 2026-11-21 | D14 | Google-free logic lives in `Logic.js` and is tested with `node --test` | It's the only part that can be tested outside Google | Claude, approved with spec |
+| 2026-11-21 | D15 | Column header names (`COLUMN_NAMES`) live in `Logic.js`, not `Code.js` | Sheets and a future Excel version must share one copy | Claude, with architecture.md |
+| 2026-11-21 | D16 | Excel support (running inside Excel) is a planned future step. The approach is still open: see architecture.md §8 | Owner wants Excel support later; the Sheets version comes first | Owner |
 
 ## Needs sign-off (PROPOSED)
 The build can start with these as written. Each one is a single line to change later.

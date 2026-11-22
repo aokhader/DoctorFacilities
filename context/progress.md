@@ -19,6 +19,7 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | 5 | `Sidebar.html` + search → Results tab | R1 R2 R3 R4 R7 | A search fills Results in the right order. Filters work. Address links open Google Maps. The patient's address appears on no tab | todo |
 | 6 | Failure messages | R8 | Every row of spec §7 triggered once by hand, and each message matches | todo |
 | 7 | `README.md` + real walkthrough (**owner**) | R9 | The owner completes setup.md Part 1 on the sample sheet alone. Menu names in setup.md fixed to match Google | todo |
+| E | **Future:** Excel support (after step 7) | R1–R9 on Excel | The owner answers architecture.md §8 "Decide before starting," and the choice is logged in decisions.md. Then follow §8's plan | not started |
 
 ## Requirements coverage
 | ID | Requirement (short) | Steps | Status |
@@ -44,3 +45,4 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | Date | What was done | Next |
 |---|---|---|
 | 2026-11-21 | Spec, data, setup, decisions, progress and CLAUDE.md written | Owner sign-off, then step 1 |
+| 2026-11-21 | architecture.md added (layers, contracts, Excel plan). Column names moved to Logic.js (D15) | Owner sign-off, then step 1 |

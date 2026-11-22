@@ -74,13 +74,14 @@ Main goal: **simple to use, simple to read, simple to understand.** The users ar
 ```
 README.md                 What it is + link to the setup guide
 CLAUDE.md                 Rules for every Claude Code session
-context/                  Spec, data, setup, decisions, progress
+context/                  Spec, architecture, data, setup, decisions, progress
 apps-script/Code.js       Google parts: menu, sidebar, read Doctors, geocode + Locations cache, write Results
 apps-script/Logic.js      Plain functions: normalize, findDuplicates, milesBetween, rankDoctors
 apps-script/Sidebar.html  The search form
 tests/logic.test.js       `node --test`, no installs. Tests Logic.js only
 sample/doctors-sample.csv Made-up doctors at public San Diego addresses
 ```
+- The full function list, data shapes and layers are in architecture.md.
 - `Logic.js` ends with `if (typeof module !== 'undefined') module.exports = {...}` so Node can test it. Apps Script ignores that line.
 - No libraries, no build step, no clasp. Staff copy and paste the 3 files in `apps-script/` into the Apps Script editor. There, `.js` files become `.gs`.
 
