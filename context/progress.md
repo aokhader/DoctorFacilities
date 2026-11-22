@@ -12,8 +12,8 @@ Rule: update this file at the end of every session. Change only the rows you wor
 - Steps 3–6 are on branch `steps-3-6-sheets`, not yet merged to `main`.
 
 ## Now / Next / Blocked
-- **Now:** owner decides on the pull request for `steps-3-6-sheets`.
-- **Next:** step 7 (`README.md` + the owner's walkthrough of setup.md, fixing any Google menu names that changed).
+- **Now:** owner opens the pull request for `steps-3-6-sheets` (steps 3–6, plus `README.md` from step 7).
+- **Next:** the rest of step 7: the owner's walkthrough of setup.md Part 1, fixing any Google menu names that changed.
 - **Blocked:** nothing.
 
 ## Build steps (in order)
@@ -25,7 +25,7 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | 4 | `Code.js`: address lookup, Locations tab, **Look up all addresses** | R6 R8 | Sample addresses are saved. The bad address shows NOT FOUND. A second run looks nothing up again. It stops at about 5 min with the "run again" message | done 2026-11-22 (checkpoint A passed in Google after the D22 time zone fix) |
 | 5 | `Sidebar.html` + search → Results tab | R1 R2 R3 R4 R7 | A search fills Results in the right order. Filters work. Address links open Google Maps. The patient's address appears on no tab | done 2026-11-22 (checkpoint B passed in Google, with D25) |
 | 6 | Failure messages | R8 | Every row of spec §7 triggered once by hand, and each message matches | done 2026-11-22 (every §7 message matched offline word for word, and by hand in checkpoint B) |
-| 7 | `README.md` + real walkthrough (**owner**) | R9 | The owner completes setup.md Part 1 on the sample sheet alone. Menu names in setup.md fixed to match Google | todo |
+| 7 | `README.md` + real walkthrough (**owner**) | R9 | The owner completes setup.md Part 1 on the sample sheet alone. Menu names in setup.md fixed to match Google | in progress: `README.md` written 2026-11-22; owner walkthrough next |
 | E | **Future:** Excel support (after step 7) | R1–R9 on Excel | The owner answers architecture.md §8 "Decide before starting," and the choice is logged in decisions.md. Then follow §8's plan | not started |
 
 ## Requirements coverage
@@ -60,3 +60,4 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | 2026-11-22 | Step 6: spec §7 gained the form messages, the not-found warning text, the search time-limit warning and the panel-loading failure. The stand-in triggers all 16 situations and matches each message to §7 word for word (17 checks pass) | Google checkpoint B |
 | 2026-11-22 | Checkpoint B, in progress: the owner asked for doctors with a found office to rank first (D25). Done in `compareResults`. Downtown Cardiology is now A, C, E (was A, E, C). 24 tests + 17 stand-in checks pass | Owner finishes checkpoint B with the new Logic.js |
 | 2026-11-22 | Checkpoint B passed in Google: search, filters, map links, privacy (Find and replace for the patient ZIP found nothing) and every §7 message. Steps 3–6 done | Owner decides on the PR, then step 7 |
+| 2026-11-22 | Step 7, part 1: `README.md` written (what it is, the menu, what it never does, links to setup.md Parts 1–2, files, tests, status). Added to the `steps-3-6-sheets` PR | Owner walks through setup.md Part 1 alone |
