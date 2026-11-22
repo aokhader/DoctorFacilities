@@ -38,7 +38,7 @@ Code (once built): `apps-script/Code.js`, `apps-script/Logic.js`, `apps-script/S
 
 **Work**
 - Build the smallest version that meets the step's "Done when."
-- Run `node --test tests/` and show the output.
+- Run `node --test` and show the output.
 - Steps 3–7 touch Google and can't run here. Say exactly what the owner should click to check them.
 
 **End**
@@ -48,5 +48,5 @@ Code (once built): `apps-script/Code.js`, `apps-script/Logic.js`, `apps-script/S
 
 ## Commands
 ```bash
-node --test tests/
+node --test
 ```

@@ -1,6 +1,6 @@
 # Architecture
 
-Status 2026-11-21: **designed, not built.** This is the target that build steps 1–6 implement. If the code drifts from it, update this file in the same session.
+Status 2026-11-21: **Logic layer built and tested (steps 1–2). Code.js and Sidebar.html not built yet.** This is the target that build steps 1–6 implement. If the code drifts from it, update this file in the same session.
 
 Purpose: show how the pieces fit, and keep the Google-only code small, so **Excel support (§8) only has to replace one layer.**
 
@@ -35,7 +35,7 @@ There are three layers. Only the middle one knows about Google.
 |---|---|---|---|
 | Screen | `apps-script/Sidebar.html` | Only through `google.script.run` calls | Hand (setup.md) |
 | Platform | `apps-script/Code.js` | Yes, all of it | Hand (setup.md) |
-| Logic | `apps-script/Logic.js` | **Never** (CLAUDE.md rule 5) | `node --test tests/` |
+| Logic | `apps-script/Logic.js` | **Never** (CLAUDE.md rule 5) | `node --test` |
 
 **Why it's split this way:** Logic.js is most of the thinking and is the same on any spreadsheet program. Keeping it free of Google calls means it can be tested on a laptop and reused for Excel without changes.
 
@@ -43,13 +43,13 @@ There are three layers. Only the middle one knows about Google.
 The patient's location lives **in memory only** (R7). ⚠ marks each place it passes through.
 
 1. Staff click **Doctor Finder → Find doctors…** → `showSearchPanel()` opens `Sidebar.html`.
-2. The sidebar calls `getSearchChoices()`. Code.js reads Doctors, `Logic.readDoctorRows()` → choices + duplicate count → dropdowns filled.
+2. The sidebar calls `getSearchChoices()`. Code.js reads Doctors, `Logic.readDoctorRows()` → `Logic.listChoices(rows)` + `Logic.findDuplicates(rows).length` → dropdowns filled.
 3. Staff fill the form and click **Find doctors**. ⚠ The sidebar sends `{location, profession, maxMiles, insurance, language}` to `searchDoctors(form)`.
 4. Code.js reads Doctors → `Logic.readDoctorRows(values)` → rows, or a missing-header message (spec §7).
 5. `Logic.listAddresses(rows)` → Code.js looks up any address not yet in Locations, saves the result, and builds `points`.
 6. ⚠ Code.js geocodes `form.location` → `patientPoint` (not saved anywhere).
 7. `Logic.groupDoctors(rows)` → doctors. `Logic.rankDoctors(doctors, patientPoint, points, filters)` → results.
-8. `Logic.buildResultsTable(results, filters, now)` → a 2D array (no patient address). Code.js clears Results and writes it.
+8. `Logic.buildResultsTable(results, filters, searchedAtText)` → a 2D array (no patient address). Code.js clears Results and writes it.
 9. Code.js returns `{foundCount, warnings}` → the sidebar shows "Found 7 doctors — see the Results tab" + warnings. ⚠ The location is discarded here.
 
 **Other menu items:**
@@ -69,7 +69,7 @@ The patient's location lives **in memory only** (R7). ⚠ marks each place it pa
 | P-6 | Look up one address → point, or null | `Maps.newGeocoder().setRegion('us').geocode()` |
 | P-7 | Show a popup message | `SpreadsheetApp.getUi().alert()` |
 | P-8 | Stop long work before the time limit | Check the elapsed time; stop at about 5 min (the limit is about 6) |
-| P-9 | Know "today" for `Looked up on` | `new Date()`, formatted `yyyy-mm-dd` |
+| P-9 | Know "today" for `Looked up on`, and the search time for the Results tab | `new Date()`, formatted in the sheet's time zone (`yyyy-mm-dd`; `yyyy-mm-dd h:mm a`). Logic.js gets ready-made text, so it has no time zones |
 
 **Entry points (the names the menu and sidebar call):**
 - `onOpen()`
@@ -84,6 +84,8 @@ Code.js holds **no** matching, distance or ranking rules. If you're about to wri
 ## 4. Logic layer (`Logic.js`): functions and data shapes
 Plain JavaScript. No Google or Excel calls, no libraries. It ends with `if (typeof module !== 'undefined') module.exports = {...}` so Node can test it, and Apps Script and browsers ignore that line.
 
+In Apps Script every file shares one scope, so Code.js calls these by plain name (`readDoctorRows(...)`). The `Logic.` prefix in this doc is only a label. Logic.js also has small helpers (`groupBy`, `uniqueBy`, `uniqueText`, `isAny`, `mapLink`, …), so **Code.js must not define functions with those names.**
+
 **Settings at the top:**
 - `COLUMN_NAMES`: the header text for each field. It lives here, not in Code.js, so every platform uses the same names (D15).
 - `DEFAULT_MAX_MILES = 25`
@@ -93,13 +95,14 @@ Plain JavaScript. No Google or Excel calls, no libraries. It ends with `if (type
 |---|---|---|
 | `normalizeText(text)` | any cell | trimmed, single-spaced, lowercase string |
 | `splitList(cell)` | `"Aetna; Cigna"` | `["Aetna", "Cigna"]` |
-| `readDoctorRows(values)` | 2D array, header row first | `{rows: Row[], warnings: string[]}`. **Throws** a plain-English Error if a header is missing |
+| `readDoctorRows(values)` | 2D array, header row first | `{rows: Row[], warnings: string[]}`. **Throws** a plain-English Error if any of the 7 headers is missing. Rows with a blank name or profession are left out, with a warning (P7, D17) |
 | `findDuplicates(rows)` | `Row[]` | `[{rowNumbers: [2, 5], doctorName, profession, facilityName}]` |
 | `groupDoctors(rows)` | `Row[]` | `Doctor[]` |
 | `listAddresses(rows)` | `Row[]` | distinct office + facility addresses (original text) |
+| `listChoices(rows)` | `Row[]` | `{professions, insurances, languages}` for the dropdowns: each value once, spelled as it first appears, A to Z |
 | `milesBetween(a, b)` | two `Point`s | miles, rounded to 0.1 |
 | `rankDoctors(doctors, patientPoint, points, filters)` | see shapes below | `Result[]`, best first, already cut to the limit or the top 20 |
-| `buildResultsTable(results, filters, searchedAt)` | `Result[]` | 2D array for the Results tab (row 1 criteria, row 2 headers, then rows). Links are `=HYPERLINK(url, label)`, which **works in both Sheets and Excel** |
+| `buildResultsTable(results, filters, searchedAtText)` | `Result[]`, Filters, text like `"2026-11-21 3:42 PM"` | 2D array for the Results tab (row 1 criteria, row 2 headers, then rows). Links are `=HYPERLINK(url, label)`, which **works in both Sheets and Excel** |
 
 **Data shapes** (examples are made up):
 ```
@@ -113,12 +116,13 @@ Doctor   { name, profession, offices: ["<address>", ...],
 Point    { lat: 32.7157, lng: -117.1611 }
 points   { "<normalized address>": Point, ... }   // not-found addresses are simply absent
 Filters  { profession: "Cardiology", maxMiles: 25 | null,
-           insurance: "Aetna" | null, language: null }
+           insurance: "Aetna" | null, language: null }   // null or "" = Any
 Result   { rank: 1, doctor, profession,
            office: { address, miles } | null,
            center: { name, address, miles } | null,
            otherCenters: [{ name, address, miles }], insurance, languages,
-           note: "" | "No office listed" | "No surgery center listed" }
+           note: "" | "No office listed" | "No surgery center listed"
+                    | "Office address not found" | "Surgery center address not found" }   // D18
 ```
 
 ## 5. Stored data

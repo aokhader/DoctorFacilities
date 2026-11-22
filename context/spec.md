@@ -102,7 +102,7 @@ sample/doctors-sample.csv Made-up doctors at public San Diego addresses
 - Doctor data stays in the owner's own Google account.
 
 ## 9. Testing
-- `node --test tests/` covers:
+- `node --test` covers:
   - haversine: same point = 0; 1° of latitude ≈ 69.1 mi
   - duplicate detection with case and spacing variants
   - grouping one doctor across several rows

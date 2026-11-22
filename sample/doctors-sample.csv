@@ -1,0 +1,13 @@
+Doctor Name,Profession,Office Address,Facility Name,Facility Address,Insurance,Languages
+Dr. Sample A,Cardiology,"330 Park Blvd, San Diego, CA 92101",Harbor Surgery Center (sample),"202 C St, San Diego, CA 92101","Aetna, Cigna","English, Spanish"
+Dr. Sample A,Cardiology,"7555 Draper Ave, La Jolla, CA 92037",Coast Surgery Center (sample),"7555 Draper Ave, La Jolla, CA 92037",Aetna,English
+Dr. Sample A,Cardiology,"330 Park Blvd, San Diego, CA 92101",Bayview Surgery Center (sample),"640 Orange Ave, Coronado, CA 92118",Blue Shield,English; Tagalog
+"  dr. sample a ",CARDIOLOGY,"330 Park Blvd,  San Diego, CA 92101",harbor  surgery center (sample),"202 C St, San Diego, CA 92101","aetna,cigna",english;spanish
+Dr. Sample C,Cardiology,"201 E Douglas Ave, El Cajon, CA 92020",Mission Surgery Center (sample),"2123 Fenton Pkwy, San Diego, CA 92108",Cigna; Medicare,English; Arabic
+Dr. Sample D,Cardiology,"300 N Coast Hwy, Oceanside, CA 92054",North County Surgery Center (sample),"239 S Kalmia St, Escondido, CA 92025",Medicare,Spanish
+Dr. Sample E,Cardiology,"123 Nowhere Rd, Nowhere, CA 00000",National City Surgery Center (sample),"1401 National City Blvd, National City, CA 91950",Aetna,English
+Dr. Sample B,Neurosurgery,,South Bay Surgery Center (sample),"365 F St, Chula Vista, CA 91910",Cigna,English
+Dr. Sample F,Neurosurgery,"3701 Voltaire St, San Diego, CA 92107",Harbor Surgery Center (sample),"202 C St, San Diego, CA 92101",Aetna; Blue Shield,"English, Vietnamese"
+Dr. Sample G,Orthopedics,"1775 Dove Ln, Carlsbad, CA 92011",Coast Surgery Center (sample),"7555 Draper Ave, La Jolla, CA 92037",Medicare,English
+Dr. Sample H,Orthopedics,"640 Orange Ave, Coronado, CA 92118",Bayview Surgery Center (sample),"640 Orange Ave, Coronado, CA 92118","Aetna, Medicare",English; Spanish
+Dr. Sample J,Orthopedics,"2123 Fenton Pkwy, San Diego, CA 92108",,,Cigna,English

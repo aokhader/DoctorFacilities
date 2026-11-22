@@ -20,6 +20,9 @@ Rule: add a line for every decision. Don't rewrite old lines. If a decision chan
 | 2026-11-21 | D14 | Google-free logic lives in `Logic.js` and is tested with `node --test` | It's the only part that can be tested outside Google | Claude, approved with spec |
 | 2026-11-21 | D15 | Column header names (`COLUMN_NAMES`) live in `Logic.js`, not `Code.js` | Sheets and a future Excel version must share one copy | Claude, with architecture.md |
 | 2026-11-21 | D16 | Excel support (running inside Excel) is a planned future step. The approach is still open: see architecture.md §8 | Owner wants Excel support later; the Sheets version comes first | Owner |
+| 2026-11-21 | D17 | Rows with a blank `Profession` are left out of searches and listed in the warnings, the same as blank names (P7). They stay in the sheet | A doctor with no profession can never match a search, so leaving it out silently would hide it | Claude, phase 1 plan approved by owner |
+| 2026-11-21 | D18 | If a doctor's office or center is in the sheet but Google couldn't find it, the Results cell says "Office address not found" / "Surgery center address not found", not "No office listed" | Staff shouldn't be told an address is missing when it's there and just needs fixing | Claude, phase 1 plan approved by owner |
+| 2026-11-21 | D19 | The test command is `node --test` (no folder name) | Node 22 reads `node --test tests/` as a file pattern and finds nothing. Plain `node --test` finds `*.test.js` files on Node 18 through 22 | Claude, step 1 |
 
 ## Needs sign-off (PROPOSED)
 The build can start with these as written. Each one is a single line to change later.

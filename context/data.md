@@ -71,9 +71,9 @@ What the tool makes of these rows:
 | `Rank` | 1 | 1 = best (the smallest farther-of-the-two distance) |
 | `Doctor` | Dr. Sample A | |
 | `Profession` | Cardiology | |
-| `Nearest office` | 330 Park Blvd, San Diego, CA 92101 | A link that opens Google Maps. Shows "No office listed" when there isn't one |
+| `Nearest office` | 330 Park Blvd, San Diego, CA 92101 | A link that opens Google Maps. Shows "No office listed" when there isn't one, or "Office address not found" when Google couldn't find it (D18) |
 | `Office (mi)` | 2.4 | Straight-line miles, 1 decimal place |
-| `Nearest surgery center` | Harbor Surgery Center (sample) — 202 C St, San Diego… | A link that opens Google Maps |
+| `Nearest surgery center` | Harbor Surgery Center (sample) — 202 C St, San Diego… | A link that opens Google Maps. Shows "No surgery center listed" or "Surgery center address not found" in the same way |
 | `Center (mi)` | 2.1 | |
 | `Other centers within limit` | Coast Surgery Center (sample) (11.8 mi) | Separated by `;`. With no limit: all of the doctor's other centers |
 | `Insurance` | Aetna, Cigna | |
