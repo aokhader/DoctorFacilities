@@ -67,7 +67,8 @@ Main goal: **simple to use, simple to read, simple to understand.** The users ar
    - score = max(nearest office mi, nearest center mi)
    - A doctor with only one kind of location uses that one, with a note such as "No office listed."
    - With max miles set, both distances must be within it.
-   - Sort by score, then center miles, then name.
+   - Doctors whose office was found come first. Doctors with no office listed, or whose office Google couldn't find, come after them, even if they're closer (D25).
+   - Within each group, sort by score, then center miles, then name.
    - With no limit, show the top 20 (PROPOSED).
 
 ## 6. Files

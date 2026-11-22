@@ -72,7 +72,7 @@ What the tool makes of these rows:
 
 | Column | Example (illustrative numbers) | Notes |
 |---|---|---|
-| `Rank` | 1 | 1 = best (the smallest farther-of-the-two distance) |
+| `Rank` | 1 | 1 = best. Doctors whose office was found come first (D25), then the smallest farther-of-the-two distance |
 | `Doctor` | Dr. Sample A | |
 | `Profession` | Cardiology | |
 | `Nearest office` | 330 Park Blvd, San Diego, CA 92101 | A link that opens Google Maps. Shows "No office listed" when there isn't one, or "Office address not found" when Google couldn't find it (D18) |

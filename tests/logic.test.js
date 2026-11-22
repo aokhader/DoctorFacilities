@@ -254,23 +254,25 @@ test('rankDoctors sorts by the farther of office and center, then center miles, 
   assert.deepEqual(names(within6), ['Dr. Aaa', 'Dr. W', 'Dr. Y'], 'office AND center must both be within the limit');
 });
 
-test('rankDoctors: a doctor with only one kind of location is ranked by it, with a note', () => {
+test('rankDoctors: a doctor with only one kind of location is ranked by it, with a note; known offices come first (D25)', () => {
   const doctors = [
-    makeDoctor('Dr. No Office', [], [center('C', placeNorth(0.05))]),
-    makeDoctor('Dr. Office Not Found', ['Nowhere'], [center('C', placeNorth(0.06))]),
-    makeDoctor('Dr. No Center', [placeNorth(0.07)], []),
-    makeDoctor('Dr. Center Not Found', [placeNorth(0.08)], [center('C', 'Nowhere')]),
+    makeDoctor('Dr. No Office', [], [center('C', placeNorth(0.05))]),                // 3.5, but no office
+    makeDoctor('Dr. Office Not Found', ['Nowhere'], [center('C', placeNorth(0.06))]), // 4.1, office not placed
+    makeDoctor('Dr. No Center', [placeNorth(0.07)], []),                              // 4.8
+    makeDoctor('Dr. Center Not Found', [placeNorth(0.08)], [center('C', 'Nowhere')]), // 5.5
+    makeDoctor('Dr. Both', [placeNorth(0.2)], [center('C', placeNorth(0.1))]),        // 13.8
     makeDoctor('Dr. Nothing Found', ['Nowhere'], []),
   ];
   const ranked = logic.rankDoctors(doctors, PATIENT_AT_ZERO, testPoints, anyFilters({ maxMiles: 25 }));
   assert.deepEqual(ranked.map(result => [result.doctor, result.note]), [
-    ['Dr. No Office', 'No office listed'],
-    ['Dr. Office Not Found', 'Office address not found'],
     ['Dr. No Center', 'No surgery center listed'],
     ['Dr. Center Not Found', 'Surgery center address not found'],
+    ['Dr. Both', ''],
+    ['Dr. No Office', 'No office listed'],
+    ['Dr. Office Not Found', 'Office address not found'],
   ]);
-  assert.equal(ranked[0].office, null);
-  assert.equal(ranked[0].center.miles, 3.5);
+  assert.equal(ranked[3].office, null);
+  assert.equal(ranked[3].center.miles, 3.5);
 });
 
 test('rankDoctors lists the other centers within the limit, nearest first', () => {
@@ -395,11 +397,12 @@ test('sample CSV: has every case from data.md and runs end to end through the lo
   const search = extra => logic.rankDoctors(doctors, DOWNTOWN_PATIENT, points, anyFilters(extra));
 
   const cardiology25 = search({ maxMiles: 25 });
-  assert.deepEqual(names(cardiology25), ['Dr. Sample A', 'Dr. Sample E', 'Dr. Sample C'], 'far Oceanside doctor dropped');
+  assert.deepEqual(names(cardiology25), ['Dr. Sample A', 'Dr. Sample C', 'Dr. Sample E'],
+    'far Oceanside doctor dropped; E (office not found) after the doctors with offices');
   assert.deepEqual(cardiology25[0].otherCenters.map(c => c.name),
     ['Bayview Surgery Center (sample)', 'Coast Surgery Center (sample)']);
-  assert.equal(cardiology25[1].note, 'Office address not found');
-  assert.deepEqual(names(search({})), ['Dr. Sample A', 'Dr. Sample E', 'Dr. Sample C', 'Dr. Sample D']);
+  assert.equal(cardiology25[2].note, 'Office address not found');
+  assert.deepEqual(names(search({})), ['Dr. Sample A', 'Dr. Sample C', 'Dr. Sample D', 'Dr. Sample E']);
 
   const neuro = search({ profession: 'Neurosurgery', maxMiles: 25 });
   assert.deepEqual(names(neuro), ['Dr. Sample F', 'Dr. Sample B']);
@@ -417,6 +420,6 @@ test('sample CSV: has every case from data.md and runs end to end through the lo
   assert.ok(table.every(row => row.length === logic.RESULT_HEADERS.length));
   assert.equal(table[2][3],
     '=HYPERLINK("https://www.google.com/maps/search/?api=1&query=330%20Park%20Blvd%2C%20San%20Diego%2C%20CA%2092101", "330 Park Blvd, San Diego, CA 92101")');
-  assert.equal(table[3][3], 'Office address not found');
+  assert.equal(table[4][3], 'Office address not found');
   assert.ok(!JSON.stringify(table).includes(String(DOWNTOWN_PATIENT.lat)), "the patient's location is not in the table");
 });

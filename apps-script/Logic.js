@@ -351,7 +351,10 @@ function scoreOf(result) {
 
 function compareResults(a, b) {
   const centerMiles = result => (result.center ? result.center.miles : Infinity);
-  return scoreOf(a) - scoreOf(b) ||
+  // Doctors whose office we can measure come first, even if a doctor without one is closer (D25).
+  const noOffice = result => (result.office ? 0 : 1);
+  return noOffice(a) - noOffice(b) ||
+    scoreOf(a) - scoreOf(b) ||
     centerMiles(a) - centerMiles(b) ||
     a.doctor.localeCompare(b.doctor);
 }
