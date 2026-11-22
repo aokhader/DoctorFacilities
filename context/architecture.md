@@ -69,7 +69,7 @@ The patient's location lives **in memory only** (R7). ⚠ marks each place it pa
 | P-6 | Look up one address → point, or null | `Maps.newGeocoder().setRegion('us').geocode()` |
 | P-7 | Show a popup message | `SpreadsheetApp.getUi().alert()` |
 | P-8 | Stop long work before the time limit | Check the elapsed time; stop at about 5 min (the limit is about 6) |
-| P-9 | Know "today" for `Looked up on`, and the search time for the Results tab | `new Date()`, formatted in the sheet's time zone (`yyyy-mm-dd`; `yyyy-mm-dd h:mm a`). Logic.js gets ready-made text, so it has no time zones |
+| P-9 | Know "today" for `Looked up on`, and the search time for the Results tab | `new Date()`, formatted in the sheet's time zone, or the script's if the sheet has none (D22) (`yyyy-mm-dd`; `yyyy-mm-dd h:mm a`). Logic.js gets ready-made text, so it has no time zones |
 
 **Entry points (the names the menu and sidebar call):**
 - `onOpen()`

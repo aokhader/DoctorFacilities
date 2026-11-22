@@ -25,6 +25,7 @@ Rule: add a line for every decision. Don't rewrite old lines. If a decision chan
 | 2026-11-21 | D19 | The test command is `node --test` (no folder name) | Node 22 reads `node --test tests/` as a file pattern and finds nothing. Plain `node --test` finds `*.test.js` files on Node 18 through 22 | Claude, step 1 |
 | 2026-11-21 | D20 | If Google can only place an address at state or country level, it counts as NOT FOUND. This applies to doctor addresses and the patient's. A ZIP or a city still counts | A mistyped address pinned to the middle of California would give wrong miles with no warning | Owner (steps 3–6 plan) |
 | 2026-11-21 | D21 | If Google answers `INVALID_REQUEST` for an address, it's saved as NOT FOUND, the same as `ZERO_RESULTS`. Only temporary problems (`UNKNOWN_ERROR`, limits) stop the run without saving | An error that isn't saved would be retried first on every run, so one odd address could block all later lookups | Claude, step 4 |
+| 2026-11-22 | D22 | Dates use the spreadsheet's time zone. If the sheet has none set, they use the script's time zone (`Session.getScriptTimeZone()`) | At checkpoint A the owner's new sheet returned no time zone, and Look up all addresses failed with "Invalid argument: timeZone" | Claude, checkpoint A fix |
 
 ## Needs sign-off (PROPOSED)
 The build can start with these as written. Each one is a single line to change later.

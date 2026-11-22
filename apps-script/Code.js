@@ -102,8 +102,10 @@ function openLocationsTab() {
 }
 
 // Today's date or time as text, in the spreadsheet's own time zone.
+// Some spreadsheets have no time zone set, so the script's time zone is the backup.
 function formatNow(pattern) {
-  return Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), pattern);
+  const timeZone = SpreadsheetApp.getActive().getSpreadsheetTimeZone() || Session.getScriptTimeZone();
+  return Utilities.formatDate(new Date(), timeZone, pattern);
 }
 
 // ---------- Messages ----------
