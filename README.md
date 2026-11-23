@@ -7,7 +7,7 @@ It replaces clicking through pins on a Google Map by hand.
 ## What's on the menu
 | Menu item | What it does |
 |---|---|
-| **Find doctors…** | Opens a search panel. The matches go to the **Results** tab. Click any address to open it in Google Maps |
+| **Find doctors…** | Opens a search panel. The matches go to the **Results** tab. Click any address to open it in Google Maps. **Show on map** then opens a map with a numbered pin for each doctor's office and surgery center; click a pin for that doctor's details |
 | **Check for duplicates** | Lists rows with the same doctor, profession and surgery center, by row number. Nothing is deleted |
 | **Look up all addresses** | Finds every address on the map once and saves it on the **Locations** tab, so searches stay fast |
 
@@ -19,8 +19,8 @@ How the list is ordered:
 ## What it never does
 - It never changes the **Doctors** tab. It only writes to its own Locations and Results tabs.
 - It never deletes or hides duplicate rows. It only reports them.
-- It never saves the patient's address: not on a tab, in a log, or in a map link.
-- It needs no API keys, add-ons or installs. It's 3 files pasted into the sheet's Apps Script editor.
+- It never saves the patient's address: not on a tab, in a log, or in a map link. The map's patient star exists only while the map is open.
+- It needs no API keys, add-ons or installs. It's 4 files pasted into the sheet's Apps Script editor.
 
 ## Get started
 - **Office staff:** follow [Part 1 of the setup guide](context/setup.md#part-1--office-staff).
@@ -30,9 +30,10 @@ How the list is ordered:
 ## Project files
 | Path | What it is |
 |---|---|
-| `apps-script/Code.js` | The Google parts: the menu, search panel, address lookups, and the Locations and Results tabs |
-| `apps-script/Logic.js` | The rules: matching, duplicates, distances and ranking. It has no Google calls, so it can be tested on its own |
+| `apps-script/Code.js` | The Google parts: the menu, search panel, address lookups, map picture, and the Locations and Results tabs |
+| `apps-script/Logic.js` | The rules: matching, duplicates, distances, ranking and map pins. It has no Google calls, so it can be tested on its own |
 | `apps-script/Sidebar.html` | The search panel |
+| `apps-script/Map.html` | The map popup |
 | `tests/logic.test.js` | Tests for `Logic.js` |
 | `sample/doctors-sample.csv` | A made-up doctor list for testing |
 | `context/` | The spec, setup guide, decisions and progress |
@@ -50,4 +51,4 @@ node --test
 The tests cover `Logic.js` only. The Google parts are checked by hand on the sample sheet (setup guide, Part 2).
 
 ## Status
-Build steps 1–6 are done and checked in Google Sheets. Next, the owner walks through the setup guide alone. See [progress](context/progress.md).
+Build steps 1–6 are done and checked in Google Sheets. The map (step 8) is done and checked in Google Sheets too. Then the owner walks through the setup guide alone. See [progress](context/progress.md).

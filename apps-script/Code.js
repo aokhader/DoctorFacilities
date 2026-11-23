@@ -1,7 +1,7 @@
 /**
  * @OnlyCurrentDoc
  */
-// Doctor Finder: the Google parts (menu, search panel, popups, tabs, address lookup).
+// Doctor Finder: the Google parts (menu, search panel, popups, map, tabs, address lookup).
 // The rules (columns, duplicates, miles, ranking) live in Logic.gs.
 // The line above limits Google's permission screen to this one spreadsheet.
 
@@ -12,6 +12,7 @@ const RESULTS_TAB = 'Results';
 const STOP_LOOKUPS_AFTER_MS = 5 * 60 * 1000;
 const SLOW_DOWN_MESSAGE = 'Google asked Doctor Finder to slow down. Wait a minute and try again.';
 const PATIENT_NOT_FOUND_MESSAGE = "Couldn't find that location. Try just the ZIP code.";
+const MAP_LIMIT_MESSAGE = "Google's daily map limit was reached. The Results tab still works — try the map again tomorrow.";
 
 // ---------- Menu ----------
 
@@ -64,14 +65,56 @@ function searchDoctors(form) {
     const plan = planLookups(addresses, readTab(LOCATIONS_TAB));
     const results = rankDoctors(groupDoctors(doctors.rows), patientPoint, plan.points, search.filters);
     writeResults(buildResultsTable(results, search.filters, formatNow('yyyy-MM-dd h:mm a')));
-    return summarizeSearch({
+    const answer = summarizeSearch({
       foundCount: results.length,
       rowWarnings: doctors.warnings,
       duplicateCount: findDuplicates(doctors.rows).length,
       notFound: plan.notFound,
       notLookedUpCount: plan.toLookUp.length,
     });
+    // For the Show on map button. The patient's point goes only to the open sidebar, without Google's
+    // matched address text, and is never saved (D27).
+    if (results.length > 0) {
+      answer.map = { patient: { lat: patientPoint.lat, lng: patientPoint.lng }, pins: buildMapPins(results, plan.points) };
+    }
+    return answer;
   });
+}
+
+// The sidebar's Show on map button calls this with the map from the last search.
+function showResultsMap(map) {
+  return answerSidebar(() => {
+    const view = fitMap(map.pins.map(pin => pin.point).concat(map.patient), MAP_SIZE);
+    const page = HtmlService.createTemplateFromFile('Map');
+    // Force-printed into Map.html's script, so "<" is escaped: no doctor name can end the script early.
+    page.mapJson = JSON.stringify({
+      image: drawMap(view, map.pins.map(pin => pin.point).concat(map.patient)),
+      width: MAP_SIZE.width,
+      height: MAP_SIZE.height,
+      patient: pinPosition(map.patient, view, MAP_SIZE),
+      pins: map.pins.map(pin => Object.assign({}, pin, pinPosition(pin.point, view, MAP_SIZE))),
+    }).replace(/</g, '\\u003c');
+    // Room for the details panel beside the map, and the key below it.
+    SpreadsheetApp.getUi().showModalDialog(
+      page.evaluate().setWidth(MAP_SIZE.width + 380).setHeight(MAP_SIZE.height + 90), 'Doctors on the map');
+    return {};
+  });
+}
+
+// A Google map picture of this view, as text the popup can show.
+// A tiny Google marker sits under each of our pins: if our pin math were off, it would peek out.
+function drawMap(view, pointList) {
+  const map = Maps.newStaticMap().setSize(MAP_SIZE.width, MAP_SIZE.height)
+    .setCenter(view.center.lat, view.center.lng).setZoom(view.zoom)
+    .setMarkerStyle(Maps.StaticMap.MarkerSize.TINY, Maps.StaticMap.Color.RED, 'X'); // tiny markers hide their label
+  pointList.forEach(point => map.addMarker(point.lat, point.lng));
+  let picture;
+  try {
+    picture = map.getBlob();
+  } catch (error) {
+    throw plainLimitError(error, MAP_LIMIT_MESSAGE);
+  }
+  return 'data:' + picture.getContentType() + ';base64,' + Utilities.base64Encode(picture.getBytes());
 }
 
 // ---------- Address lookup ----------
@@ -97,11 +140,16 @@ function findPlace(address) {
   try {
     response = Maps.newGeocoder().setRegion('us').geocode(address);
   } catch (error) {
-    if (/short time/i.test(error.message)) throw new Error(SLOW_DOWN_MESSAGE);
-    if (/too many times/i.test(error.message)) throw new Error(DAILY_LIMIT_MESSAGE);
-    throw error;
+    throw plainLimitError(error, DAILY_LIMIT_MESSAGE);
   }
   return readGeocoderAnswer(response);
+}
+
+// Google's "Service invoked too many times…" errors, as our plain messages. Other errors pass through.
+function plainLimitError(error, dailyLimitMessage) {
+  if (/short time/i.test(error.message)) return new Error(SLOW_DOWN_MESSAGE);
+  if (/too many times/i.test(error.message)) return new Error(dailyLimitMessage);
+  return error;
 }
 
 // ---------- Reading and writing tabs ----------

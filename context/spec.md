@@ -36,6 +36,7 @@ Main goal: **simple to use, simple to read, simple to understand.** The users ar
 | R7 | Never writes to the **Doctors** tab. Never stores the patient's address |
 | R8 | Every failure shows a plain-English message that says what to do next |
 | R9 | A setup guide that a non-technical person can follow step by step |
+| R10 | After a search, **Show on map** opens a map popup: a numbered pin (the doctor's Rank) at each doctor's nearest office and nearest surgery center, a star at the patient's location, and the doctor's details when a pin is clicked. Nothing about the patient is saved (D26–D29) |
 
 ## 3. User flows
 1. **Search (R1–R4):** menu **Doctor Finder → Find doctors…** opens the sidebar. Staff enter:
@@ -47,9 +48,16 @@ Main goal: **simple to use, simple to read, simple to understand.** The users ar
 
    Then they click **Find doctors**. The Results tab fills, and the sidebar says "Found 7 doctors — see the Results tab," plus any warnings.
 2. **Duplicates (R5):** menu **Doctor Finder → Check for duplicates** opens a popup like "Rows 12 and 45: Jane Doe · Cardiology · Example Surgery Center." Each search also warns "3 possible duplicates — use Check for duplicates."
-3. **First-time setup (R6, R9):** paste the 3 files into Extensions → Apps Script, approve Google's permission screen, then run **Doctor Finder → Look up all addresses** once. See setup.md.
+3. **First-time setup (R6, R9):** paste the 4 files into Extensions → Apps Script, approve Google's permission screen, then run **Doctor Finder → Look up all addresses** once. See setup.md.
 4. **Update from Excel:** File → Import → upload the .xlsx → "Replace current sheet" on the Doctors tab. New or changed addresses are looked up on the next search.
 5. **Address not found (R6, R8):** the sidebar lists the addresses that couldn't be found. Staff fix the typo on the Doctors tab (the corrected text counts as a new address, so it's looked up again), or delete that address's row on the Locations tab to retry.
+6. **Map (R10):** after a search that found doctors, a **Show on map** button appears under the "Found …" message. It opens a popup:
+   - a Google map picture, fitted to show every pin
+   - a blue circle at each doctor's nearest office and a green square at their nearest surgery center, numbered with the doctor's Rank. A place shared by several doctors, or an office at the same address as the center, is one pin (half blue, half green when it's both)
+   - a red star at the patient's location
+   - hovering a pin shows the doctor names; clicking it shows each doctor's details beside the map, plus an "Open in Google Maps" link for that address
+
+   The map can't be dragged or zoomed (D26). A new search hides the button until its results are in, so the map always matches the Results tab.
 
 ## 4. Data (full detail in data.md)
 - **Doctors tab** (read only). Columns are found by header text (trimmed, case-insensitive), so column order doesn't matter. PROPOSED headers: `Doctor Name, Profession, Office Address, Facility Name, Facility Address, Insurance, Languages`. Insurance and languages are comma- or semicolon-separated lists in one cell.
@@ -79,12 +87,13 @@ context/                  Spec, architecture, data, setup, decisions, progress
 apps-script/Code.js       Google parts: menu, sidebar, read Doctors, geocode + Locations cache, write Results
 apps-script/Logic.js      Plain functions: normalize, findDuplicates, milesBetween, rankDoctors
 apps-script/Sidebar.html  The search form
+apps-script/Map.html      The map popup (R10)
 tests/logic.test.js       `node --test`, no installs. Tests Logic.js only
 sample/doctors-sample.csv Made-up doctors at public San Diego addresses
 ```
 - The full function list, data shapes and layers are in architecture.md.
 - `Logic.js` ends with `if (typeof module !== 'undefined') module.exports = {...}` so Node can test it. Apps Script ignores that line.
-- No libraries, no build step, no clasp. Staff copy and paste the 3 files in `apps-script/` into the Apps Script editor. There, `.js` files become `.gs`.
+- No libraries, no build step, no clasp. Staff copy and paste the 4 files in `apps-script/` into the Apps Script editor. There, `.js` files become `.gs`.
 
 ## 7. Limits and failures (R8)
 | Situation | Message / behavior |
@@ -104,11 +113,13 @@ sample/doctors-sample.csv Made-up doctors at public San Diego addresses
 | All addresses looked up | "All 400 addresses are looked up (12 new this time)." Plus the not-found list, if any |
 | The search panel can't read the Doctors tab when it opens | The tab or header message above, then "Then close this panel and open Doctor Finder → Find doctors… again." |
 | Anything unexpected (a bug, a Google outage, a lost connection while the search panel is open) | "Something went wrong (…). Reload the sheet and try again. If it keeps happening, send a screenshot of this to whoever set up Doctor Finder." No stack trace |
-| No matches | "No doctors matched. Try a larger distance or Any insurance." |
+| No matches | "No doctors matched. Try a larger distance or Any insurance." No Show on map button |
+| Daily map picture limit (Static Map render: 1,000/day on a personal Gmail account, 10,000 on Workspace, per the Apps Script quotas page, checked 2026-11-22) | Shown in the sidebar, under the search message: "Google's daily map limit was reached. The Results tab still works — try the map again tomorrow." A short-term limit gets the "slow down" message above |
 
 ## 8. Privacy
 - Internal staff tool.
 - The patient's location goes to Google's geocoder (the same as typing it into Google Maps) and is never written to the sheet.
+- For the map (R10), the patient's point (latitude and longitude only, not the typed text) goes back to the open search panel and into the map popup. Google draws the map picture around it. It's gone when the panel or popup closes. Each pin's "Open in Google Maps" link holds only that doctor address (D12, D27).
 - Staff shouldn't type patient names into the sidebar.
 - Doctor data stays in the owner's own Google account.
 
@@ -119,4 +130,5 @@ sample/doctors-sample.csv Made-up doctors at public San Diego addresses
   - grouping one doctor across several rows
   - ranking order and the max-miles filter
   - a doctor with no office listed
+  - map pins: one per place, numbered by Rank; pixel positions match Google's documented example; the map fits every pin
 - Manual: import `sample/doctors-sample.csv` into a test Google Sheet and run every flow in §3.

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 16px; color: #202124; margin: 0; }
+    .layout { display: flex; gap: 16px; }
+    #map { position: relative; flex: none; }
+    #map img { display: block; }
+    .pin { position: absolute; transform: translate(-50%, -50%); min-width: 30px; height: 30px; padding: 0 7px;
+      border: 2px solid #fff; color: #fff; font: bold 15px Arial, sans-serif; cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+    .office { background: #1a73e8; border-radius: 15px; }
+    .center { background: #188038; border-radius: 3px; }
+    .both { background: linear-gradient(90deg, #1a73e8 50%, #188038 50%); border-radius: 3px; }
+    .pin:focus-visible, .pin.chosen { outline: 4px solid #fbbc04; }
+    #patient { position: absolute; transform: translate(-50%, -50%); color: #c5221f; font-size: 34px; line-height: 1;
+      text-shadow: 0 0 3px #fff, 0 0 3px #fff; cursor: default; }
+    #side { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    #details { flex: 1; overflow-y: auto; }
+    #details h2 { font-size: 18px; margin: 0; }
+    #details h3 { font-size: 16px; margin: 16px 0 4px; }
+    #details p { margin: 4px 0; }
+    .hint { color: #5f6368; }
+    .key { font-size: 14px; color: #5f6368; margin: 8px 0 0; }
+    .key span { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+    #close { margin-top: 12px; width: 100%; font-size: 16px; padding: 8px; border: 0; border-radius: 4px;
+      background: #1a73e8; color: #fff; font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <div>
+      <div id="map"><img id="picture" alt="Map of the doctors found"></div>
+      <p class="key">
+        <span style="background:#1a73e8;border-radius:7px"></span>Office &nbsp;
+        <span style="background:#188038;border-radius:2px"></span>Surgery center &nbsp;
+        <b style="color:#c5221f">★</b> Patient (not saved) &nbsp; Numbers = Rank on the Results tab
+      </p>
+    </div>
+    <div id="side">
+      <div id="details" aria-live="polite">
+        <p class="hint">Click a numbered pin to see the doctor's details.</p>
+      </div>
+      <button id="close" type="button">Close</button>
+    </div>
+  </div>
+
+  <script>
+    // Filled in by Code.gs (showResultsMap). It holds the doctors' places, not the patient's address.
+    const MAP = <?!= mapJson ?>;
+
+    const mapBox = document.getElementById('map');
+    const details = document.getElementById('details');
+
+    function addText(parent, tag, text) {
+      const element = document.createElement(tag);
+      element.textContent = text;
+      parent.appendChild(element);
+      return element;
+    }
+
+    function showPin(pin, button) {
+      document.querySelectorAll('.pin.chosen').forEach(other => other.classList.remove('chosen'));
+      button.classList.add('chosen');
+      details.replaceChildren();
+      addText(details, 'h2', pin.place);
+      addText(details, 'p', pin.address);
+      const link = addText(details, 'a', 'Open in Google Maps');
+      link.href = pin.link;
+      link.target = '_blank';
+      pin.doctors.forEach(doctor => {
+        addText(details, 'h3', doctor.heading);
+        doctor.lines.forEach(line => addText(details, 'p', line));
+      });
+    }
+
+    function placeAt(element, spot) {
+      element.style.left = spot.x + 'px';
+      element.style.top = spot.y + 'px';
+    }
+
+    const picture = document.getElementById('picture');
+    picture.src = MAP.image;
+    picture.width = MAP.width;
+    picture.height = MAP.height;
+
+    const star = addText(mapBox, 'span', '★');
+    star.id = 'patient';
+    star.title = "Patient's location (not saved)";
+    placeAt(star, MAP.patient);
+
+    MAP.pins.forEach((pin, i) => {
+      const button = addText(mapBox, 'button', pin.label);
+      button.type = 'button';
+      button.className = 'pin ' + pin.kind;
+      button.title = pin.hover;
+      button.setAttribute('aria-label', pin.hover.replace(/\n/g, ', '));
+      button.style.zIndex = MAP.pins.length - i; // the best-ranked pins stay on top
+      placeAt(button, pin);
+      button.addEventListener('click', () => showPin(pin, button));
+    });
+
+    document.getElementById('close').addEventListener('click', () => google.script.host.close());
+  </script>
+</body>
+</html>

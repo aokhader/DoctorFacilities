@@ -40,12 +40,16 @@
   </form>
 
   <p id="status" role="status">Loading the doctor list…</p>
+  <button id="showMap" type="button" hidden>Show on map</button>
   <div id="error" role="alert" hidden></div>
   <ul id="warnings"></ul>
 
   <script>
     const form = document.getElementById('search');
     const findButton = document.getElementById('find');
+    const mapButton = document.getElementById('showMap');
+    // The last search's map, kept only while this panel is open (D27).
+    let lastMap = null;
 
     function fillDropdown(id, values, firstChoice) {
       const select = document.getElementById(id);
@@ -56,9 +60,7 @@
     // Shows { message, warnings } or { error } under the form.
     function showAnswer(answer) {
       document.getElementById('status').textContent = answer.message || '';
-      const errorBox = document.getElementById('error');
-      errorBox.textContent = answer.error || '';
-      errorBox.hidden = !answer.error;
+      showError(answer.error || '');
       document.getElementById('warnings').replaceChildren(...(answer.warnings || []).map(text => {
         const item = document.createElement('li');
         item.textContent = text;
@@ -80,15 +82,38 @@
       document.getElementById('location').focus();
     }
 
+    function showError(text) {
+      const errorBox = document.getElementById('error');
+      errorBox.textContent = text;
+      errorBox.hidden = !text;
+    }
+
     // Only for problems Doctor Finder couldn't catch itself, like a lost internet connection.
+    function problemText(error) {
+      return 'Something went wrong (' + (error && error.message ? error.message : error) + '). ' +
+        'Reload the sheet and try again. If it keeps happening, send a screenshot of this to whoever set up Doctor Finder.';
+    }
+
     function showProblem(error) {
-      showAnswer({ error: 'Something went wrong (' + (error && error.message ? error.message : error) + '). ' +
-        'Reload the sheet and try again. If it keeps happening, send a screenshot of this to whoever set up Doctor Finder.' });
+      showAnswer({ error: problemText(error) });
     }
 
     function searchDone(answer) {
       showAnswer(answer);
+      lastMap = answer.map || null;
+      mapButton.hidden = !lastMap;
       findButton.disabled = false;
+    }
+
+    // The map opens in its own popup, so the search message and warnings stay as they are.
+    function mapDone(answer) {
+      showError(answer.error || '');
+      mapButton.disabled = false;
+    }
+
+    function mapFailed(error) {
+      showError(problemText(error));
+      mapButton.disabled = false;
     }
 
     function searchFailed(error) {
@@ -99,8 +124,16 @@
     form.addEventListener('submit', event => {
       event.preventDefault();
       findButton.disabled = true;
+      lastMap = null; // the map always matches the Results tab
+      mapButton.hidden = true;
       showAnswer({ message: 'Searching… The first search after the doctor list changes can take a minute.' });
       runSearch(Object.fromEntries(new FormData(form)));
+    });
+
+    mapButton.addEventListener('click', () => {
+      mapButton.disabled = true;
+      showError('');
+      openMap(lastMap);
     });
 
     // ---------- Calls to Google: the only lines to change for another spreadsheet program ----------
@@ -110,6 +143,10 @@
 
     function runSearch(formValues) {
       google.script.run.withSuccessHandler(searchDone).withFailureHandler(searchFailed).searchDoctors(formValues);
+    }
+
+    function openMap(map) {
+      google.script.run.withSuccessHandler(mapDone).withFailureHandler(mapFailed).showResultsMap(map);
     }
 
     loadChoices();
