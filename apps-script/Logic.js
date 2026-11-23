@@ -372,10 +372,14 @@ function rankDoctors(doctors, patientPoint, points, filters) {
 
 // ---------- The Results tab ----------
 
-// A link that opens Google Maps at the address. Destination only, so no patient data (D12).
+// The Google Maps address for one place. Destination only, so no patient data (D12).
+function mapUrl(address) {
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+}
+
+// A Results tab cell that opens Google Maps at the address.
 function mapLink(address, label) {
-  const url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
-  return '=HYPERLINK("' + url + '", "' + String(label).replace(/"/g, '""') + '")';
+  return '=HYPERLINK("' + mapUrl(address) + '", "' + String(label).replace(/"/g, '""') + '")';
 }
 
 // searchedAtText is ready-made text (e.g. "2026-11-21 3:42 PM") so this file has no time zones.
@@ -393,6 +397,10 @@ function centerLabel(center) {
   return [center.name, center.address].filter(text => text !== '').join(' — ');
 }
 
+function otherCentersText(result) {
+  return result.otherCenters.map(center => (center.name || center.address) + ' (' + center.miles + ' mi)').join('; ');
+}
+
 function resultRow(result) {
   return [
     result.rank,
@@ -402,7 +410,7 @@ function resultRow(result) {
     result.office ? result.office.miles : '',
     result.center ? mapLink(result.center.address, centerLabel(result.center)) : result.note,
     result.center ? result.center.miles : '',
-    result.otherCenters.map(center => (center.name || center.address) + ' (' + center.miles + ' mi)').join('; '),
+    otherCentersText(result),
     result.insurance.join(', '),
     result.languages.join(', '),
   ];
@@ -414,6 +422,102 @@ function buildResultsTable(results, filters, searchedAtText) {
   return [criteriaRow, RESULT_HEADERS.slice()].concat(results.map(resultRow));
 }
 
+// ---------- The map (D26–D29) ----------
+
+// Google's free map pictures are at most 640 pixels wide.
+const MAP_SIZE = { width: 640, height: 480 };
+const MAP_MARGIN = 40; // pixels kept clear at the edges, so pins aren't cut off
+const MAX_MAP_ZOOM = 15; // a single place still shows its neighborhood
+
+// One pin per place: each doctor's nearest office and nearest surgery center.
+// A place shared by several doctors, or a doctor's office and center at one address, is one pin.
+function buildMapPins(results, points) {
+  const visits = results.flatMap(result => [
+    result.office && { role: 'office', address: result.office.address, result: result },
+    result.center && { role: 'center', address: result.center.address, centerName: result.center.name, result: result },
+  ].filter(Boolean));
+  return groupBy(visits, visit => normalizeText(visit.address)).map(group => {
+    const hasOffice = group.some(visit => visit.role === 'office');
+    const centerVisit = group.find(visit => visit.role === 'center');
+    const centerName = centerVisit ? centerVisit.centerName || 'Surgery center' : '';
+    const doctors = uniqueBy(group.map(visit => visit.result), result => result.rank).map(mapDetails);
+    const place = !centerVisit ? 'Office' : hasOffice ? 'Office and ' + centerName : centerName;
+    return {
+      kind: !centerVisit ? 'office' : hasOffice ? 'both' : 'center',
+      label: doctors.map(doctor => doctor.rank).join(', '),
+      place: place,
+      address: group[0].address,
+      hover: [place].concat(doctors.map(doctor => doctor.heading)).join('\n'),
+      link: mapUrl(group[0].address),
+      point: points[normalizeText(group[0].address)],
+      doctors: doctors,
+    };
+  });
+}
+
+// What a pin shows about one doctor, as ready-made lines of text.
+function mapDetails(result) {
+  return {
+    rank: result.rank,
+    heading: result.rank + '. ' + result.doctor + ' · ' + result.profession,
+    lines: [
+      result.office ? 'Office: ' + result.office.address + ' (' + result.office.miles + ' mi)' : result.note,
+      result.center ? 'Surgery center: ' + centerLabel(result.center) + ' (' + result.center.miles + ' mi)' : result.note,
+      result.otherCenters.length ? 'Other centers: ' + otherCentersText(result) : '',
+      result.insurance.length ? 'Insurance: ' + result.insurance.join(', ') : '',
+      result.languages.length ? 'Languages: ' + result.languages.join(', ') : '',
+    ].filter(text => text !== ''),
+  };
+}
+
+// Where a { lat, lng } point sits on Google's whole-world map at zoom 0, which is 256 pixels across.
+function worldPixel(point) {
+  const sinLat = Math.min(Math.max(Math.sin(point.lat * Math.PI / 180), -0.9999), 0.9999);
+  return {
+    x: 256 * (0.5 + point.lng / 360),
+    y: 256 * (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)),
+  };
+}
+
+function pointAtWorldPixel(pixel) {
+  return {
+    lat: (2 * Math.atan(Math.exp((0.5 - pixel.y / 256) * 2 * Math.PI)) - Math.PI / 2) * 180 / Math.PI,
+    lng: (pixel.x / 256 - 0.5) * 360,
+  };
+}
+
+// The center and zoom that fit every point on a picture of this size, inside the margin.
+function fitMap(pointList, size) {
+  const pixels = pointList.map(worldPixel);
+  const xs = pixels.map(pixel => pixel.x);
+  const ys = pixels.map(pixel => pixel.y);
+  const width = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+  const height = Math.max.apply(null, ys) - Math.min.apply(null, ys);
+  let zoom = MAX_MAP_ZOOM;
+  while (zoom > 0 && (width * Math.pow(2, zoom) > size.width - 2 * MAP_MARGIN ||
+    height * Math.pow(2, zoom) > size.height - 2 * MAP_MARGIN)) {
+    zoom--;
+  }
+  return {
+    center: pointAtWorldPixel({
+      x: (Math.max.apply(null, xs) + Math.min.apply(null, xs)) / 2,
+      y: (Math.max.apply(null, ys) + Math.min.apply(null, ys)) / 2,
+    }),
+    zoom: zoom,
+  };
+}
+
+// Where a point lands on the map picture, in pixels from its top-left corner.
+function pinPosition(point, map, size) {
+  const scale = Math.pow(2, map.zoom);
+  const spot = worldPixel(point);
+  const middle = worldPixel(map.center);
+  return {
+    x: Math.round((spot.x - middle.x) * scale + size.width / 2),
+    y: Math.round((spot.y - middle.y) * scale + size.height / 2),
+  };
+}
+
 // Lets Node load this file for tests. Apps Script ignores it.
 if (typeof module !== 'undefined') {
   module.exports = {
@@ -422,5 +526,6 @@ if (typeof module !== 'undefined') {
     normalizeText, splitList, readDoctorRows, findDuplicates, describeDuplicates, groupDoctors,
     listAddresses, listChoices, planLookups, locationRow, readGeocoderAnswer, describeNotFound,
     readSearchForm, summarizeSearch, milesBetween, rankDoctors, buildResultsTable,
+    MAP_SIZE, MAP_MARGIN, MAX_MAP_ZOOM, mapUrl, buildMapPins, fitMap, pinPosition,
   };
 }

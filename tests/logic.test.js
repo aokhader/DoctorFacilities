@@ -422,4 +422,74 @@ test('sample CSV: has every case from data.md and runs end to end through the lo
     '=HYPERLINK("https://www.google.com/maps/search/?api=1&query=330%20Park%20Blvd%2C%20San%20Diego%2C%20CA%2092101", "330 Park Blvd, San Diego, CA 92101")');
   assert.equal(table[4][3], 'Office address not found');
   assert.ok(!JSON.stringify(table).includes(String(DOWNTOWN_PATIENT.lat)), "the patient's location is not in the table");
+
+  // The map: each doctor's nearest office and center, numbered by Rank (D29).
+  const pins = logic.buildMapPins(cardiology25, points);
+  assert.deepEqual(pins.map(pin => [pin.label, pin.kind]),
+    [['1', 'office'], ['1', 'center'], ['2', 'office'], ['2', 'center'], ['3', 'center']],
+    "E's office wasn't found, so E has only a center pin");
+  assert.ok(pins.every(pin => pin.point), 'every pin has a point');
+  assert.ok(!JSON.stringify(pins).includes(String(DOWNTOWN_PATIENT.lat)), "the patient's location is not in the pins");
+  const orthopedics = logic.buildMapPins(search({ profession: 'Orthopedics' }), points);
+  assert.deepEqual(orthopedics.map(pin => [pin.label, pin.kind]), [['1', 'both'], ['2', 'office'], ['3', 'office'], ['3', 'center']],
+    "H's office and center are one address, so one pin");
+});
+
+// ---------- The map ----------
+
+test("pinPosition matches Google's own example and the step 8.0 dots the owner saw on Google's pins", () => {
+  // Google's docs: Chicago is pixel (525, 761) on the whole-world map at zoom 3, which is 2048 pixels across.
+  assert.deepEqual(logic.pinPosition({ lat: 41.85, lng: -87.65 }, { center: { lat: 0, lng: 0 }, zoom: 3 },
+    { width: 2048, height: 2048 }), { x: 525, y: 761 });
+  const stepZero = { center: { lat: 32.75, lng: -117.16 }, zoom: 10 };
+  assert.deepEqual(logic.pinPosition({ lat: 32.6830, lng: -117.1795 }, stepZero, logic.MAP_SIZE), { x: 306, y: 298 });
+  assert.deepEqual(logic.pinPosition(stepZero.center, stepZero, logic.MAP_SIZE), { x: 320, y: 240 });
+});
+
+test('fitMap fits every point inside the margin at the closest zoom; a single place stops at zoom 15', () => {
+  const places = Object.values(SAMPLE_POINTS).concat(DOWNTOWN_PATIENT);
+  const allInside = map => places.map(place => logic.pinPosition(place, map, logic.MAP_SIZE)).every(spot =>
+    spot.x >= logic.MAP_MARGIN && spot.x <= logic.MAP_SIZE.width - logic.MAP_MARGIN &&
+    spot.y >= logic.MAP_MARGIN && spot.y <= logic.MAP_SIZE.height - logic.MAP_MARGIN);
+  const map = logic.fitMap(places, logic.MAP_SIZE);
+  assert.ok(allInside(map));
+  assert.ok(!allInside({ center: map.center, zoom: map.zoom + 1 }), 'one step closer would cut a pin off');
+
+  const one = logic.fitMap([DOWNTOWN_PATIENT], logic.MAP_SIZE);
+  assert.equal(one.zoom, logic.MAX_MAP_ZOOM);
+  assert.deepEqual(logic.pinPosition(DOWNTOWN_PATIENT, one, logic.MAP_SIZE), { x: 320, y: 240 });
+});
+
+test('buildMapPins: one pin per place, numbered by Rank; a shared place lists every doctor there', () => {
+  const harbor = placeNorth(0.03);
+  const doctors = [
+    makeDoctor('Dr. X', [placeNorth(0.01)], [center('Harbor', harbor)], { insurance: ['Aetna'], languages: ['English'] }),
+    makeDoctor('Dr. Y', [placeNorth(0.02)], [center('Harbor', harbor)]),
+    makeDoctor('Dr. Z', [], [center('South', placeNorth(0.04))]),
+    makeDoctor('Dr. W', [placeNorth(0.05)], [center('Same', placeNorth(0.05))]),
+  ];
+  const results = logic.rankDoctors(doctors, PATIENT_AT_ZERO, testPoints, anyFilters());
+  assert.deepEqual(names(results), ['Dr. X', 'Dr. Y', 'Dr. W', 'Dr. Z']);
+
+  const pins = logic.buildMapPins(results, testPoints);
+  assert.deepEqual(pins.map(pin => [pin.kind, pin.label, pin.place]), [
+    ['office', '1', 'Office'],
+    ['center', '1, 2', 'Harbor'],
+    ['office', '2', 'Office'],
+    ['both', '3', 'Office and Same'],
+    ['center', '4', 'South'],
+  ]);
+  const harborPin = pins[1];
+  assert.equal(harborPin.hover, 'Harbor\n1. Dr. X · Cardiology\n2. Dr. Y · Cardiology');
+  assert.equal(harborPin.link, 'https://www.google.com/maps/search/?api=1&query=Place%200.03%20north');
+  assert.deepEqual(harborPin.point, { lat: 0.03, lng: 0 });
+  assert.deepEqual(harborPin.doctors[0].lines, [
+    'Office: Place 0.01 north (0.7 mi)',
+    'Surgery center: Harbor — Place 0.03 north (2.1 mi)',
+    'Insurance: Aetna',
+    'Languages: English',
+  ]);
+  assert.deepEqual(pins[4].doctors[0].lines, ['No office listed', 'Surgery center: South — Place 0.04 north (2.8 mi)']);
+  assert.equal(pins[3].doctors.length, 1, "W's office and center are one pin with W listed once");
+  assert.deepEqual(logic.buildMapPins([], testPoints), []);
 });

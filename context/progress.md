@@ -9,12 +9,32 @@ Rule: update this file at the end of every session. Change only the rows you wor
 - A throwaway stand-in for Google (fake tabs, popups and geocoder, kept outside the repo) ran every step 3–4 "Done when" offline.
 - Checkpoint A passed in real Google Sheets on 2026-11-22, after a time zone fix (D22). Nowhere was saved as NOT FOUND, so D20 holds.
 - Steps 5–6 are done: `Sidebar.html`, Find doctors → Results tab, and every spec §7 message. Checkpoint B passed in real Google Sheets on 2026-11-22, after the owner's ranking change (D25).
-- Steps 3–6 are on branch `steps-3-6-sheets`, not yet merged to `main`.
+- Steps 3–6 were merged to `main` (PR #2).
+- Step 8 (map view, D26–D29) is done on branch `map-view`, not committed yet. Checkpoint C passed in Google on 2026-11-22. 27 tests pass, plus 21 stand-in checks.
 
 ## Now / Next / Blocked
-- **Now:** owner opens the pull request for `steps-3-6-sheets` (steps 3–6, plus `README.md` from step 7).
-- **Next:** the rest of step 7: the owner's walkthrough of setup.md Part 1, fixing any Google menu names that changed.
+- **Now:** the owner commits `map-view` and opens its pull request.
+- **Next:** the step 7 walkthrough of setup.md Part 1, which now includes the map's "File 4".
 - **Blocked:** nothing.
+
+## Checkpoint C (step 8.3, owner, on the sample sheet)
+1. In **Extensions → Apps Script**, paste the new `Code.js`, `Logic.js` and `Sidebar.html` over their copies.
+2. Click **+ → HTML**, name it `Map`, and paste `apps-script/Map.html`.
+3. Save, then delete the `MapTest` file from step 8.0.
+4. Reload the sheet.
+5. **Search A:** ZIP `92103`, Cardiology, 25 mi. Then click **Show on map**.
+6. **Search B:** ZIP `92103`, Orthopedics, Max miles blank. Then click **Show on map**.
+
+| # | Check |
+|---|---|
+| 1 | The map opens with no new permission screen and no key error |
+| 2 | Search A: the patient star is near Hillcrest, Dr. C's office pin is in El Cajon (east), and Dr. E has only a center pin, in National City (south). No small red Google dot peeks out from under any pin |
+| 3 | The pin numbers match Rank on the Results tab. Clicking a pin 1 shows the same miles as Results row 1 |
+| 4 | Search B: Dr. H's Coronado office and center (the same address) are one half-blue, half-green pin, on Coronado. Dr. G's center is on the La Jolla coast |
+| 5 | A pin's "Open in Google Maps" opens just that address; the patient's ZIP is not in the URL |
+| 6 | A new search hides the button until results come back, and the new map matches the new Results |
+| 7 | When no doctors match (Neurosurgery + Medicare), there's no map button |
+| 8 | Privacy: **Edit → Find and replace** "92103" with "Search all sheets" finds nothing, and Apps Script → **Executions** shows no patient text |
 
 ## Build steps (in order)
 | # | Step | Requirements | Done when | Status |
@@ -26,6 +46,11 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | 5 | `Sidebar.html` + search → Results tab | R1 R2 R3 R4 R7 | A search fills Results in the right order. Filters work. Address links open Google Maps. The patient's address appears on no tab | done 2026-11-22 (checkpoint B passed in Google, with D25) |
 | 6 | Failure messages | R8 | Every row of spec §7 triggered once by hand, and each message matches | done 2026-11-22 (every §7 message matched offline word for word, and by hand in checkpoint B) |
 | 7 | `README.md` + real walkthrough (**owner**) | R9 | The owner completes setup.md Part 1 on the sample sheet alone. Menu names in setup.md fixed to match Google | in progress: `README.md` written 2026-11-22; owner walkthrough next |
+| 8.0 | Map go/no-go test in Google (**owner**) | R10 | A map picture shows in a popup with no API key, the dots sit on Google's pins, and the link opens | done 2026-11-22 (owner: the map showed in Sheets as planned) |
+| 8.1 | `Logic.js`: `mapUrl`, `buildMapPins`, `fitMap`, `pinPosition` + tests | R10 | `node --test` passes, including Google's documented Chicago pixel example | done 2026-11-22 (27 tests pass) |
+| 8.2 | `Code.js` `showResultsMap`, "Show on map" in `Sidebar.html`, new `Map.html` | R7 R8 R10 | The stand-in shows that the patient's ZIP is on no tab and in no map data, and that names are escaped. The Map.html and sidebar previews work | done 2026-11-22 (21 stand-in checks pass; previews checked in the browser) |
+| 8.3 | Google checkpoint C (**owner**) | R7 R10 | All 8 checks in the map plan pass on the sample sheet | done 2026-11-22 (owner: every check passed) |
+| M | **Future:** interactive map (D26 Option 2: Google Maps JavaScript API with a key + billing; or Option 3: Leaflet + OpenStreetMap) | R10 | The owner picks one and logs it in decisions.md. It reuses `buildMapPins`, the sidebar button and the Map.html details panel; only the map underneath changes | not started |
 | E | **Future:** Excel support (after step 7) | R1–R9 on Excel | The owner answers architecture.md §8 "Decide before starting," and the choice is logged in decisions.md. Then follow §8's plan | not started |
 
 ## Requirements coverage
@@ -40,6 +65,7 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | R7 | Never write Doctors; never store the patient's address | 3, 5 | done: Doctors unchanged, and a searched ZIP found on no tab (Find and replace, all sheets), checked in Google |
 | R8 | Plain-English failure messages | 3, 4, 6 | done: every spec §7 message, checked offline and in Google |
 | R9 | Setup guide a non-technical person can follow | 2, 7 | sample done (step 2); walkthrough in step 7 |
+| R10 | Show a search's results on a map: numbered pins for each doctor's nearest office and center, click for details, patient star in memory only (D26–D29) | 8 | done (step 8), checked in Google (checkpoint C) |
 
 ## Step 7 checklist (spec §3 flows, on the sample sheet)
 - [ ] Flow 1 — Search: Results filled, best first, links work
@@ -61,3 +87,12 @@ Rule: update this file at the end of every session. Change only the rows you wor
 | 2026-11-22 | Checkpoint B, in progress: the owner asked for doctors with a found office to rank first (D25). Done in `compareResults`. Downtown Cardiology is now A, C, E (was A, E, C). 24 tests + 17 stand-in checks pass | Owner finishes checkpoint B with the new Logic.js |
 | 2026-11-22 | Checkpoint B passed in Google: search, filters, map links, privacy (Find and replace for the patient ZIP found nothing) and every §7 message. Steps 3–6 done | Owner decides on the PR, then step 7 |
 | 2026-11-22 | Step 7, part 1: `README.md` written (what it is, the menu, what it never does, links to setup.md Parts 1–2, files, tests, status). Added to the `steps-3-6-sheets` PR | Owner walks through setup.md Part 1 alone |
+| 2026-11-22 | Map view planned (step 8, branch `map-view`). Checked against Google's docs: a google.com/maps link holds only one place, so the map is drawn in a popup instead. Owner chose the built-in map picture with clickable pins (D26), with an interactive Google map or OpenStreetMap kept as future upgrades. Pins, the patient star and the sidebar button are in D27–D29. The owner ran the step 8.0 test: the map picture shows in Sheets with no API key | Step 8.1 |
+| 2026-11-22 | Steps 8.1–8.2:
+- `Logic.js` gained `mapUrl`, `buildMapPins`, `fitMap` and `pinPosition`. 27 tests pass, including Google's Chicago example and the step 8.0 dot.
+- `Code.js` gained `showResultsMap` and `drawMap`, and `searchDoctors` returns `map`. `plainLimitError` is now shared with `findPlace`.
+- `Sidebar.html` has the Show on map button, and `Map.html` is new.
+- The stand-in now fakes the map picture, template and dialog (21 checks). It checks that the ZIP is in no tab or answer, that names are escaped, the limit messages, and §7 word for word.
+- Popup and sidebar previews were driven in the browser: pins, details, keyboard, Close, button show/hide, the map error.
+- Docs: spec R10 / flow 6 / §7 / §8, architecture P-10 / §9 map upgrades, setup File 4 / E7, README | Owner runs checkpoint C |
+| 2026-11-22 | Checkpoint C passed in Google: all 8 checks, including no key error, pins in the right places with no red dot showing, the half-blue, half-green Coronado pin, destination-only links, and the patient ZIP found on no tab. Step 8 done | Owner commits `map-view` + PR, then the step 7 walkthrough |

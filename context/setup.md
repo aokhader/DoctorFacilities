@@ -21,14 +21,15 @@ If your list is already in Google Sheets, skip to step 5.
    `Doctor Name` · `Profession` · `Office Address` · `Facility Name` · `Facility Address` · `Insurance` · `Languages`
 
 ## B. Add Doctor Finder to the sheet (once)
-You'll copy 3 files from this project's `apps-script` folder into Google.
+You'll copy 4 files from this project's `apps-script` folder into Google.
 1. In the sheet, click **Extensions → Apps Script**. A new browser tab opens.
 2. At the top left, click **Untitled project**, type **Doctor Finder**, and click **Rename**.
 3. **File 1:** on the left, click **Code.gs**. Click inside the big text area, press **Ctrl+A**, then **Delete**. Open `apps-script/Code.js`, copy everything, and paste it in.
 4. **File 2:** next to **Files**, click **+** → **Script**. Type **Logic** and press Enter. Clear the text area the same way, then paste everything from `apps-script/Logic.js`.
 5. **File 3:** click **+** → **HTML**. Type **Sidebar** and press Enter. Clear it, then paste everything from `apps-script/Sidebar.html`.
-6. Click the **Save** icon (or press **Ctrl+S**).
-7. Go back to your spreadsheet tab and reload the page (**F5**). After a few seconds a **Doctor Finder** menu appears at the top, next to **Help**.
+6. **File 4:** click **+** → **HTML** again. Type **Map** and press Enter. Clear it, then paste everything from `apps-script/Map.html`.
+7. Click the **Save** icon (or press **Ctrl+S**).
+8. Go back to your spreadsheet tab and reload the page (**F5**). After a few seconds a **Doctor Finder** menu appears at the top, next to **Help**.
 
 ## C. Give permission (once per person)
 The first time you use the menu, Google asks whether this sheet's script may run.
@@ -36,7 +37,7 @@ The first time you use the menu, Google asks whether this sheet's script may run
 2. A box says **Authorization required**. Click **Continue** (or **Review permissions**).
 3. Choose your Google account.
 4. If you see **"Google hasn't verified this app,"** click **Advanced**, then **Go to Doctor Finder (unsafe)**.
-   - *Why this is OK:* Google shows this warning for any script someone writes for their own sheet without sending it to Google for review. The script is only the 3 files you pasted in step B, and it works only inside this spreadsheet.
+   - *Why this is OK:* Google shows this warning for any script someone writes for their own sheet without sending it to Google for review. The script is only the 4 files you pasted in step B, and it works only inside this spreadsheet.
 5. Click **Allow**.
 
 Everyone who uses Doctor Finder needs **edit access** to the sheet and does step C once on their own account.
@@ -57,7 +58,12 @@ Everyone who uses Doctor Finder needs **edit access** to the sheet and does step
    - pick a **Language**
 5. Click **Find doctors**.
 6. The **Results** tab shows the best matches first. Click any address to open it in Google Maps for directions.
-7. The Results tab is replaced on every search. To keep a result, copy it to another tab or print it.
+7. To see them on a map, click **Show on map** in the panel:
+   - Blue circles are offices and green squares are surgery centers. The number on each is the doctor's Rank on the Results tab.
+   - The red star is the patient. It isn't saved anywhere.
+   - Point at a pin to see the names. Click it to see the details, then click **Open in Google Maps** for directions.
+   - Click **Close** when you're done.
+8. The Results tab is replaced on every search. To keep a result, copy it to another tab or print it.
 
 ## F. Update the list from Excel
 1. Click the **Doctors** tab at the bottom.
@@ -72,13 +78,15 @@ Click **Doctor Finder → Check for duplicates**. A box lists rows that have the
 ## If something goes wrong
 | You see | What to do |
 |---|---|
-| No **Doctor Finder** menu | Reload the sheet (F5) and wait 10 seconds. Still missing? Redo step B6 (Save) |
+| No **Doctor Finder** menu | Reload the sheet (F5) and wait 10 seconds. Still missing? Redo step B7 (Save) |
 | "Couldn't find the column '…'" | Row 1 of the Doctors tab is missing that header, or it's spelled differently. Fix the header |
 | "Couldn't find that location" | Try just the 5-digit ZIP code |
 | Addresses listed as not found | Fix the typo on the Doctors tab, then search again |
 | An address is pinned to the wrong place | On the Locations tab, delete that address's row, fix the address on the Doctors tab, and search again |
 | "Daily lookup limit was reached" | Wait until tomorrow. Addresses already looked up keep working |
 | "No doctors matched" | Make Max miles bigger, or set Insurance/Language to Any |
+| No **Show on map** button | It appears only after a search finds doctors. Search again |
+| "Daily map limit was reached" | Use the Results tab today. The map works again tomorrow |
 | "Authorization required" again | Someone changed the code. Repeat step C |
 
 ---
@@ -91,6 +99,7 @@ Click **Doctor Finder → Check for duplicates**. A box lists rows that have the
 | `apps-script/Code.js` | `Code.gs` | Menu, sidebar, reading Doctors, address lookup + Locations, writing Results |
 | `apps-script/Logic.js` | `Logic.gs` | Plain functions: matching, duplicates, distance, ranking |
 | `apps-script/Sidebar.html` | `Sidebar.html` | The search panel |
+| `apps-script/Map.html` | `Map.html` | The map popup |
 
 Updating the code: paste the changed file over its copy in the editor, Save, then reload the sheet. Staff may need to repeat step C if the permissions changed.
 
@@ -109,4 +118,5 @@ node --test
 
 ## Limits to know
 - Address lookups: about 1,000 per day per person on a personal Gmail account, 10,000 on Google Workspace. Each address is looked up once ever, so this only matters the first time.
+- Map pictures: about 1,000 per day per person on a personal Gmail account, 10,000 on Google Workspace. One is used each time someone clicks **Show on map**.
 - Each script run is cut off after about 6 minutes, which is why "Look up all addresses" stops at about 5 minutes and asks to be run again. Confirm the current limit on Google's Apps Script quotas page during the build.
